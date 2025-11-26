@@ -84,6 +84,8 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
       salesUnit: product.saleUnit || 'UN',
       salesCount: parseInt(product.salesCount) || 0,
       stock: parseInt(product.quantity?.inStock) || 0,
+      minQuantity: parseFloat(product.quantity?.min) || undefined,
+      maxQuantity: parseFloat(product.quantity?.max) || undefined,
       promotionActive: product.promotions?.active || false,
       promotionName: product.promotions?.promotionName,
       promotionType: product.promotions?.promotionType,
