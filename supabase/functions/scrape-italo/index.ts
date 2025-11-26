@@ -8,6 +8,7 @@ const corsHeaders = {
 
 // Lista completa de paths de categorias
 const ALL_PATHS = [
+  "homepage", // Página inicial - Promoções/Destaque
   "10950",
   "11744",
   "10735_10744",
@@ -163,17 +164,43 @@ async function fetchHtml(url: string): Promise<string> {
   return await response.text();
 }
 
+function calculateDiscount(price: string, special: string): number {
+  const priceNum = parseFloat(price.replace("R$", "").replace(",", ".").trim());
+  const specialNum = parseFloat(special.replace("R$", "").replace(",", ".").trim());
+  
+  if (priceNum && specialNum && specialNum < priceNum) {
+    return Math.round(((priceNum - specialNum) / priceNum) * 100);
+  }
+  return 0;
+}
+
 async function processCategory(categoryPath: string): Promise<any[]> {
   const cleanPath = categoryPath.replace(/amp;/g, "");
-  const url = `https://online.superitalo.com.br/index.php?route=product/category&path=${cleanPath}`;
+  let url: string;
+  
+  if (cleanPath === "homepage") {
+    url = "https://online.superitalo.com.br/";
+  } else {
+    url = `https://online.superitalo.com.br/index.php?route=product/category&path=${cleanPath}`;
+  }
   
   console.log("Baixando:", url);
   
   try {
     const html = await fetchHtml(url);
     const products = extractArgsFromHtml(html);
-    console.log(`→ ${products.length} produtos encontrados em ${cleanPath}`);
-    return products;
+    
+    // Adiciona cálculo de desconto para produtos com preço especial
+    const productsWithDiscount = products.map(product => {
+      if (product.price && product.special) {
+        const discount = calculateDiscount(product.price, product.special);
+        return { ...product, discount: discount > 0 ? discount : undefined };
+      }
+      return product;
+    });
+    
+    console.log(`→ ${productsWithDiscount.length} produtos encontrados em ${cleanPath}`);
+    return productsWithDiscount;
   } catch (err) {
     console.error("Erro ao baixar categoria:", cleanPath, "-", err);
     return [];
