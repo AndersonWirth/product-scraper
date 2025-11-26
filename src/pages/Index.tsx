@@ -14,11 +14,13 @@ interface Product {
   special?: string;
   image?: string;
   href?: string;
+  discount?: number;
   [key: string]: any;
 }
 
 const DEPARTMENTS = [
   { value: "all", label: "Todos os Departamentos" },
+  { value: "homepage", label: "Promoção/Destaque" },
   { value: "10950", label: "Confeitaria e Padaria" },
   { value: "11744", label: "Horta e Jardim" },
   { value: "10735", label: "Açougue" },
@@ -214,7 +216,7 @@ const Index = () => {
                     {product.name || "Sem nome"}
                   </h3>
                   
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex items-baseline gap-2 flex-wrap">
                     {product.special ? (
                       <>
                         <span className="text-2xl font-bold text-secondary">
@@ -223,6 +225,11 @@ const Index = () => {
                         <span className="text-sm line-through text-muted-foreground">
                           R$ {product.price}
                         </span>
+                        {product.discount && (
+                          <Badge className="bg-warning text-warning-foreground font-bold">
+                            -{product.discount}%
+                          </Badge>
+                        )}
                       </>
                     ) : (
                       <span className="text-2xl font-bold text-primary">
