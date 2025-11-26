@@ -85,19 +85,24 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
         )}
       </div>
       
-      <CardContent className="flex-1 p-4">
-        <div className="mb-2">
+      <CardContent className="flex-1 p-4 space-y-3">
+        <div>
           {product.brand && (
-            <Badge variant="secondary" className="mb-2">
+            <Badge variant="secondary" className="mb-2 text-xs">
               {product.brand}
             </Badge>
           )}
           <h3 className="line-clamp-2 text-sm font-semibold">
             {product.name || "Sem nome"}
           </h3>
+          {product.description && (
+            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
+              {product.description}
+            </p>
+          )}
         </div>
         
-        <div className="flex items-baseline gap-2 flex-wrap mb-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           {product.promotionalPrice ? (
             <>
               <span className="text-2xl font-bold text-secondary">
@@ -108,7 +113,7 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
               </span>
               {product.discount && product.discount > 0 && (
                 <Badge className="bg-warning text-warning-foreground font-bold">
-                  -{product.discount}%
+                  Desconto
                 </Badge>
               )}
             </>
@@ -119,19 +124,64 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
           )}
         </div>
 
-        <div className="flex gap-2 text-xs text-muted-foreground mb-2">
-          <span>🛒 {product.salesCount || 0} vendas</span>
-          {product.stock < 10 && (
+        <div className="space-y-1 text-xs text-muted-foreground border-t pt-2">
+          {product.stock !== undefined && (
+            <div>
+              Em estoque: <span className="font-medium text-foreground">
+                {product.stock.toFixed(2)} {product.salesUnit || 'UN'}
+              </span>
+            </div>
+          )}
+          
+          {(product.minQuantity !== undefined || product.maxQuantity !== undefined) && (
+            <div className="flex gap-2">
+              {product.minQuantity !== undefined && (
+                <span>Mín: {product.minQuantity} {product.salesUnit || 'UN'}</span>
+              )}
+              {product.maxQuantity !== undefined && (
+                <span>• Máx: {product.maxQuantity} {product.salesUnit || 'UN'}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {product.inPromotion && (
+            <Badge variant="default" className="text-xs">
+              Em Promoção
+            </Badge>
+          )}
+          
+          {product.salesCount > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {product.salesCount} vendas
+            </Badge>
+          )}
+          
+          {product.stock < 10 && product.stock > 0 && (
             <Badge variant="destructive" className="text-xs">
               Estoque Baixo
             </Badge>
           )}
         </div>
 
-        {product.promotionName && (
-          <Badge variant="outline" className="text-xs">
-            {product.promotionName}
-          </Badge>
+        {product.promotionActive && product.promotionName && (
+          <div className="border-t pt-2 space-y-1">
+            <Badge variant="secondary" className="text-xs">
+              {product.promotionName}
+            </Badge>
+            {product.promotionType && (
+              <p className="text-xs text-muted-foreground">
+                Tipo: {product.promotionType}
+              </p>
+            )}
+            {(product.startDate || product.endDate) && (
+              <p className="text-xs text-muted-foreground">
+                {product.startDate && `De ${new Date(product.startDate).toLocaleDateString('pt-BR')}`}
+                {product.endDate && ` até ${new Date(product.endDate).toLocaleDateString('pt-BR')}`}
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </>
