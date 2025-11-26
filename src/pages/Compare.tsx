@@ -39,21 +39,31 @@ export default function Compare() {
   });
 
   const getAllProducts = async (store: string) => {
-    const requests = [{
-      search: "",
-      categoryId: "",
-      promotion: false,
-      limit: 1000,
-      sortField: "sales_count",
-      sortOrder: "desc"
-    }];
+    if (store === "italo") {
+      // Para Italo, usa apenas categorias principais para evitar timeout
+      const { data, error } = await supabase.functions.invoke(`scrape-${store}`, {
+        body: { department: "11077" } // Apenas departamento principal
+      });
+      if (error) throw error;
+      return data.products.map((p: any) => ({ ...p, store }));
+    } else {
+      // Para Marcon e Alfa, usa API com limite
+      const requests = [{
+        search: "",
+        categoryId: "",
+        promotion: false,
+        limit: 500,
+        sortField: "sales_count",
+        sortOrder: "desc"
+      }];
 
-    const { data, error } = await supabase.functions.invoke(`scrape-${store}`, {
-      body: { requests }
-    });
+      const { data, error } = await supabase.functions.invoke(`scrape-${store}`, {
+        body: { requests }
+      });
 
-    if (error) throw error;
-    return data.products.map((p: any) => ({ ...p, store }));
+      if (error) throw error;
+      return data.products.map((p: any) => ({ ...p, store }));
+    }
   };
 
   const handleCompare = async () => {
