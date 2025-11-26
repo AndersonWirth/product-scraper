@@ -35,38 +35,68 @@ interface MarconProduct {
 }
 
 async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
-  const params = new URLSearchParams();
-  
-  params.append('promotion', config.promotion ? 'true' : 'false');
-  params.append('brands', '');
-  if (config.categoryId) params.append('categories', config.categoryId);
-  params.append('tags', '');
-  params.append('personas', '');
-  params.append('size', config.limit.toString());
-  params.append('from', '0');
-  if (config.search) params.append('search', config.search);
-  params.append('sortField', config.sortField);
-  params.append('sortOrder', config.sortOrder);
+  const pageSize = Math.min(1000, config.limit || 1000);
+  const maxTotal = config.limit || 1000;
 
-  const url = `https://sense.osuper.com.br/16/32/search?${params.toString()}`;
-  
-  console.log(`Fetching: ${url}`);
-  
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'application/json',
-    },
-  });
+  let from = 0;
+  let allHits: any[] = [];
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+  while (allHits.length < maxTotal) {
+    const params = new URLSearchParams();
+
+    params.append('promotion', config.promotion ? 'true' : 'false');
+    params.append('brands', '');
+    if (config.categoryId) params.append('categories', config.categoryId);
+    params.append('tags', '');
+    params.append('personas', '');
+    params.append('size', pageSize.toString());
+    params.append('from', from.toString());
+    if (config.search) params.append('search', config.search);
+    params.append('sortField', config.sortField);
+    params.append('sortOrder', config.sortOrder);
+
+    const url = `https://sense.osuper.com.br/16/32/search?${params.toString()}`;
+
+    console.log(`Fetching: ${url}`);
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const hits = data?.hits || [];
+    const total = typeof data?.total === 'number' ? data.total : undefined;
+
+    console.log(`→ ${hits.length} products fetched (from=${from}, pageSize=${pageSize}, total=${total})`);
+
+    allHits = allHits.concat(hits);
+
+    if (hits.length < pageSize) {
+      // Última página
+      break;
+    }
+
+    if (total !== undefined && from + pageSize >= total) {
+      break;
+    }
+
+    from += pageSize;
+
+    if (allHits.length >= maxTotal) {
+      break;
+    }
   }
 
-  const data = await response.json();
-  const hits = data?.hits || [];
+  console.log(`Total hits collected: ${allHits.length}`);
 
-  return hits.map((product: any) => {
+  return allHits.map((product: any) => {
     const price = parseFloat(product.pricing?.price) || 0;
     const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
     const discount = product.pricing?.discount || 0;
