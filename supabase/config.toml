@@ -2,3 +2,9 @@ project_id = "mykcfrlcrluvwnonbjzu"
 
 [functions.scrape-italo]
 verify_jwt = false
+
+[functions.scrape-marcon]
+verify_jwt = false
+
+[functions.scrape-alfa]
+verify_jwt = false
