@@ -18,26 +18,38 @@ function normalize(str: string): string {
   return str
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") 
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function findBestMatch(productName: string, products: Product[]) {
+type ComparableProduct = Product & { normalizedName: string };
+
+function findBestMatch(productName: string, products: ComparableProduct[]) {
   if (products.length === 0) return null;
 
-  const results = products.map(item => ({
-    product: item,
-    score: stringSimilarity.compareTwoStrings(
-      normalize(productName),
-      normalize(item.name)
-    )
-  }));
+  const normalizedSource = normalize(productName);
+  let best: { product: ComparableProduct; score: number } | null = null;
 
-  results.sort((a, b) => b.score - a.score);
+  for (const item of products) {
+    const score = stringSimilarity.compareTwoStrings(
+      normalizedSource,
+      item.normalizedName
+    );
 
-  return results[0].score >= 0.85 ? results[0] : null;
+    if (!best || score > best.score) {
+      best = { product: item, score };
+
+      // Early exit on perfect match
+      if (score === 1) {
+        break;
+      }
+    }
+  }
+
+  if (!best || best.score < 0.85) return null;
+  return best;
 }
 
 function getBestPrice(prices: { store: string; price: number; promotionalPrice?: number }[]) {
@@ -59,44 +71,90 @@ serve(async (req) => {
   try {
     const { italoProducts, marconProducts, alfaProducts } = await req.json();
 
-    console.log(`Comparing products: Italo(${italoProducts.length}), Marcon(${marconProducts.length}), Alfa(${alfaProducts.length})`);
+    const italo: ComparableProduct[] = italoProducts.map((p: Product) => ({
+      ...p,
+      normalizedName: normalize(p.name),
+    }));
+
+    const marcon: ComparableProduct[] = marconProducts.map((p: Product) => ({
+      ...p,
+      normalizedName: normalize(p.name),
+    }));
+
+    const alfa: ComparableProduct[] = alfaProducts.map((p: Product) => ({
+      ...p,
+      normalizedName: normalize(p.name),
+    }));
+
+    console.log(
+      `Comparing products: Italo(${italo.length}), Marcon(${marcon.length}), Alfa(${alfa.length})`
+    );
 
     const comparedProducts: any[] = [];
-    const allProducts = [...italoProducts, ...marconProducts, ...alfaProducts];
     const processedNames = new Set<string>();
 
-    for (const product of italoProducts) {
-      const normalizedName = normalize(product.name);
-      if (processedNames.has(normalizedName)) continue;
-      processedNames.add(normalizedName);
+    for (const product of italo) {
+      if (processedNames.has(product.normalizedName)) continue;
+      processedNames.add(product.normalizedName);
 
-      const marconMatch = findBestMatch(product.name, marconProducts);
-      const alfaMatch = findBestMatch(product.name, alfaProducts);
+      const marconMatch = findBestMatch(product.name, marcon);
+      const alfaMatch = findBestMatch(product.name, alfa);
 
       if (!marconMatch && !alfaMatch) continue;
 
       const prices = [
         { store: "italo", price: product.price, promotionalPrice: product.promotionalPrice },
-        ...(marconMatch ? [{ store: "marcon", price: marconMatch.product.price, promotionalPrice: marconMatch.product.promotionalPrice }] : []),
-        ...(alfaMatch ? [{ store: "alfa", price: alfaMatch.product.price, promotionalPrice: alfaMatch.product.promotionalPrice }] : [])
+        ...(marconMatch
+          ? [
+              {
+                store: "marcon",
+                price: marconMatch.product.price,
+                promotionalPrice: marconMatch.product.promotionalPrice,
+              },
+            ]
+          : []),
+        ...(alfaMatch
+          ? [
+              {
+                store: "alfa",
+                price: alfaMatch.product.price,
+                promotionalPrice: alfaMatch.product.promotionalPrice,
+              },
+            ]
+          : []),
       ];
 
       const bestPrice = getBestPrice(prices);
       if (!bestPrice) continue;
 
-      const avgScore = [
-        marconMatch?.score || 0,
-        alfaMatch?.score || 0
-      ].filter(s => s > 0).reduce((a, b) => a + b, 0) / prices.length;
+      const scoreValues = [
+        marconMatch?.score ?? 0,
+        alfaMatch?.score ?? 0,
+      ].filter((s) => s > 0);
+
+      const avgScore =
+        scoreValues.length > 0
+          ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
+          : 0;
 
       comparedProducts.push({
         name: product.name,
         italo: { price: product.price, promotionalPrice: product.promotionalPrice },
-        marcon: marconMatch ? { price: marconMatch.product.price, promotionalPrice: marconMatch.product.promotionalPrice } : undefined,
-        alfa: alfaMatch ? { price: alfaMatch.product.price, promotionalPrice: alfaMatch.product.promotionalPrice } : undefined,
+        marcon: marconMatch
+          ? {
+              price: marconMatch.product.price,
+              promotionalPrice: marconMatch.product.promotionalPrice,
+            }
+          : undefined,
+        alfa: alfaMatch
+          ? {
+              price: alfaMatch.product.price,
+              promotionalPrice: alfaMatch.product.promotionalPrice,
+            }
+          : undefined,
         bestStore: bestPrice.store,
         bestPrice: bestPrice.promotionalPrice || bestPrice.price,
-        matchScore: avgScore
+        matchScore: avgScore,
       });
     }
 
