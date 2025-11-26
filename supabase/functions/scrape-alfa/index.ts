@@ -49,8 +49,7 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
   params.append('sortField', config.sortField);
   params.append('sortOrder', config.sortOrder);
 
-  // Using same endpoint as Marcon for now - UPDATE THIS URL
-  const url = `https://sense.osuper.com.br/16/32/search?${params.toString()}`;
+  const url = `https://sense.osuper.com.br/69/226/search?${params.toString()}`;
   
   console.log(`Fetching: ${url}`);
   
