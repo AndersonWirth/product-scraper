@@ -49,19 +49,19 @@ export default function Compare() {
 
   const getAllProducts = async (store: string) => {
     if (store === "italo") {
-      // Para Italo, usa apenas categorias principais para evitar timeout
+      // Para Italo, busca TODAS as categorias
       const { data, error } = await supabase.functions.invoke(`scrape-${store}`, {
-        body: { department: "11077" } // Apenas departamento principal
+        body: { department: "all" }
       });
       if (error) throw error;
       return data.products.map((p: any) => ({ ...p, store }));
     } else {
-      // Para Marcon e Alfa, usa API com limite
+      // Para Marcon e Alfa, usa API com limite máximo
       const requests = [{
         search: "",
         categoryId: "",
         promotion: false,
-        limit: 500,
+        limit: 1000,
         sortField: "sales_count",
         sortOrder: "desc"
       }];
