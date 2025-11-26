@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ArrowLeftRight, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeftRight, ArrowLeft, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Product {
@@ -29,6 +31,13 @@ interface ComparedProduct {
 
 export default function Compare() {
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [department, setDepartment] = useState("");
+  const [allProducts, setAllProducts] = useState<{
+    italo: Product[];
+    marcon: Product[];
+    alfa: Product[];
+  }>({ italo: [], marcon: [], alfa: [] });
   const [comparedProducts, setComparedProducts] = useState<ComparedProduct[]>([]);
   const [stats, setStats] = useState({
     totalMatches: 0,
@@ -66,7 +75,7 @@ export default function Compare() {
     }
   };
 
-  const handleCompare = async () => {
+  const handleLoadProducts = async () => {
     setLoading(true);
     try {
       toast.info("Buscando produtos das 3 filiais...");
@@ -77,13 +86,62 @@ export default function Compare() {
         getAllProducts("alfa")
       ]);
 
-      toast.info("Comparando produtos...");
+      setAllProducts({
+        italo: italoProducts,
+        marcon: marconProducts,
+        alfa: alfaProducts
+      });
+
+      toast.success("Produtos carregados! Use os filtros para comparar.");
+    } catch (error: any) {
+      console.error("Erro ao carregar:", error);
+      toast.error("Erro ao carregar produtos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompare = async () => {
+    if (!allProducts.italo.length) {
+      toast.error("Carregue os produtos primeiro!");
+      return;
+    }
+
+    if (!searchTerm && !department) {
+      toast.error("Digite um termo de busca ou departamento!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Filtra produtos baseado nos critérios
+      const filterProducts = (products: Product[]) => {
+        return products.filter(p => {
+          const matchesSearch = !searchTerm || 
+            p.name.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesDept = !department || 
+            (p as any).department?.includes(department);
+          return matchesSearch && matchesDept;
+        });
+      };
+
+      const filteredItalo = filterProducts(allProducts.italo);
+      const filteredMarcon = filterProducts(allProducts.marcon);
+      const filteredAlfa = filterProducts(allProducts.alfa);
+
+      if (filteredItalo.length === 0) {
+        toast.error("Nenhum produto encontrado com os filtros aplicados!");
+        setLoading(false);
+        return;
+      }
+
+      toast.info("Comparando produtos filtrados...");
 
       const { data, error } = await supabase.functions.invoke("compare-products", {
         body: {
-          italoProducts,
-          marconProducts,
-          alfaProducts
+          italoProducts: filteredItalo,
+          marconProducts: filteredMarcon,
+          alfaProducts: filteredAlfa
         }
       });
 
@@ -130,31 +188,92 @@ export default function Compare() {
       </div>
 
       <Card className="p-6 mb-8">
-        <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold mb-4">Comparação de Produtos</h2>
+        
+        <div className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-2">Iniciar Comparação</h2>
-            <p className="text-sm text-muted-foreground">
-              Clique no botão para comparar todos os produtos das 3 filiais
+            <p className="text-sm text-muted-foreground mb-4">
+              1. Primeiro carregue os produtos das 3 filiais
             </p>
+            <Button
+              onClick={handleLoadProducts}
+              disabled={loading || allProducts.italo.length > 0}
+              className="gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Carregando...
+                </>
+              ) : allProducts.italo.length > 0 ? (
+                <>
+                  ✓ Produtos Carregados ({allProducts.italo.length} Italo, {allProducts.marcon.length} Marcon, {allProducts.alfa.length} Alfa)
+                </>
+              ) : (
+                "Carregar Produtos"
+              )}
+            </Button>
           </div>
-          <Button
-            onClick={handleCompare}
-            disabled={loading}
-            size="lg"
-            className="gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Comparando...
-              </>
-            ) : (
-              <>
-                <ArrowLeftRight className="h-5 w-5" />
-                Comparar Similares
-              </>
-            )}
-          </Button>
+
+          {allProducts.italo.length > 0 && (
+            <>
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  2. Aplique os filtros desejados
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="search">Buscar por nome</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="search"
+                        placeholder="Ex: Arroz, Feijão, Leite..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="department">Departamento (Italo)</Label>
+                    <Input
+                      id="department"
+                      placeholder="Ex: 11077, 10735..."
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  3. Compare os produtos filtrados
+                </p>
+                <Button
+                  onClick={handleCompare}
+                  disabled={loading || (!searchTerm && !department)}
+                  size="lg"
+                  className="gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Comparando...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowLeftRight className="h-5 w-5" />
+                      Comparar Similares
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Card>
 
