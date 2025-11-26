@@ -61,7 +61,7 @@ export default function Compare() {
         search: "",
         categoryId: "",
         promotion: false,
-        limit: 1000,
+        limit: 10000,
         sortField: "sales_count",
         sortOrder: "desc"
       }];
