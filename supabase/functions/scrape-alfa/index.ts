@@ -35,14 +35,17 @@ interface AlfaProduct {
 }
 
 async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
-  // TODO: Replace with actual Alfa API endpoint
+  // TODO: Replace with actual Alfa API endpoint when available
   const params = new URLSearchParams();
   
-  if (config.search) params.append('search', config.search);
+  params.append('promotion', config.promotion ? 'true' : 'false');
+  params.append('brands', '');
   if (config.categoryId) params.append('categories', config.categoryId);
-  if (config.promotion) params.append('promotion', 'true');
+  params.append('tags', '');
+  params.append('personas', '');
   params.append('size', config.limit.toString());
   params.append('from', '0');
+  if (config.search) params.append('search', config.search);
   params.append('sortField', config.sortField);
   params.append('sortOrder', config.sortOrder);
 
@@ -63,36 +66,31 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
   }
 
   const data = await response.json();
-  const hits = data?.hits?.hits || [];
+  const hits = data?.hits || [];
 
-  return hits.map((hit: any) => {
-    const source = hit._source || {};
-    const price = parseFloat(source.price) || 0;
-    const promotionalPrice = source.promotional_price ? parseFloat(source.promotional_price) : undefined;
-    
-    let discount = 0;
-    if (promotionalPrice && promotionalPrice < price) {
-      discount = Math.round(((price - promotionalPrice) / price) * 100);
-    }
+  return hits.map((product: any) => {
+    const price = parseFloat(product.pricing?.price) || 0;
+    const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
+    const discount = product.pricing?.discount || 0;
 
     return {
-      id: source.id || hit._id,
-      name: source.name || '',
-      description: source.description || '',
-      brand: source.brand || '',
+      id: product.id || '',
+      name: product.name || '',
+      description: product.description || '',
+      brand: product.brandName || '',
       price,
       promotionalPrice,
       discount: discount > 0 ? discount : undefined,
-      inPromotion: !!promotionalPrice,
-      salesUnit: source.sales_unit || 'UN',
-      salesCount: parseInt(source.sales_count) || 0,
-      stock: parseInt(source.stock) || 0,
-      promotionActive: source.promotion_active || false,
-      promotionName: source.promotion_name,
-      promotionType: source.promotion_type,
-      startDate: source.start_date,
-      endDate: source.end_date,
-      image: source.image_url,
+      inPromotion: product.pricing?.promotion || false,
+      salesUnit: product.saleUnit || 'UN',
+      salesCount: parseInt(product.salesCount) || 0,
+      stock: parseInt(product.quantity?.inStock) || 0,
+      promotionActive: product.promotions?.active || false,
+      promotionName: product.promotions?.promotionName,
+      promotionType: product.promotions?.promotionType,
+      startDate: product.promotions?.startDate,
+      endDate: product.promotions?.endDate,
+      image: product.image || '',
     };
   });
 }
