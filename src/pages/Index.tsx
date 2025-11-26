@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, ArrowLeftRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { CompetitorSelector } from "@/components/CompetitorSelector";
 import { ItaloScraper } from "@/components/ItaloScraper";
 import { MarconScraper } from "@/components/MarconScraper";
@@ -39,10 +41,18 @@ const Index = () => {
             </div>
           </div>
           
-          <CompetitorSelector
-            value={selectedCompetitor}
-            onChange={setSelectedCompetitor}
-          />
+          <div className="flex gap-3">
+            <Link to="/compare">
+              <Button variant="outline" className="gap-2">
+                <ArrowLeftRight className="h-4 w-4" />
+                Comparar Similares
+              </Button>
+            </Link>
+            <CompetitorSelector
+              value={selectedCompetitor}
+              onChange={setSelectedCompetitor}
+            />
+          </div>
         </div>
 
         {renderCompetitorScraper()}
