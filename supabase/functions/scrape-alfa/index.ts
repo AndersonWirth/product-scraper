@@ -18,6 +18,7 @@ interface AlfaProduct {
   id: string;
   name: string;
   description: string;
+  gtin?: string;
   brand: string;
   price: number;
   promotionalPrice?: number;
@@ -96,6 +97,13 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
 
   console.log(`Total hits collected: ${allHits.length}`);
 
+  // Debug: log sample hit to inspect gtin field when running
+  if (allHits.length > 0) {
+    try {
+      console.log('Alfa sample hit keys:', Object.keys(allHits[0]));
+    } catch (e) {}
+  }
+
   return allHits.map((product: any) => {
     const price = parseFloat(product.pricing?.price) || 0;
     const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
@@ -103,6 +111,18 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
   
     return {
       id: product.id || '',
+      gtin:
+        product.gtin ||
+        product.ean ||
+        product.barcode ||
+        product.extraData?.gtin ||
+        product.attributes?.gtin ||
+        product.identifiers?.gtin ||
+        (product.skus && product.skus.length > 0 && (() => {
+          const found = product.skus.find((s: any) => s.gtin || s.ean || s.barcode || s.identifiers?.gtin);
+          return found ? (found.gtin || found.ean || found.barcode || found.identifiers?.gtin) : undefined;
+        })()) ||
+        undefined,
       name: product.name || '',
       description: product.description || '',
       brand: product.brandName || '',
@@ -145,10 +165,28 @@ serve(async (req) => {
 
     const flatProducts = allProducts.flat();
     
-    // Remove duplicados por ID
-    const uniqueProducts = Array.from(
-      new Map(flatProducts.map(p => [p.id, p])).values()
-    );
+    // Remove duplicados por ID, preservando gtin quando presente
+    const productMap = new Map<string, any>();
+    for (const p of flatProducts) {
+      const id = p.id || "";
+      if (!id) continue;
+      const existing = productMap.get(id);
+      if (!existing) {
+        productMap.set(id, p);
+        continue;
+      }
+      const merged: any = { ...existing };
+      for (const key of Object.keys(p)) {
+        const val = p[key];
+        if (val !== undefined && val !== null && val !== "") {
+          merged[key] = val;
+        }
+      }
+      merged.gtin = existing.gtin || p.gtin || merged.gtin;
+      productMap.set(id, merged);
+    }
+
+    const uniqueProducts = Array.from(productMap.values());
 
     console.log(`Found ${uniqueProducts.length} unique products`);
 

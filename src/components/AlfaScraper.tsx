@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Loader2, Plus, Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Download, Loader2, Plus, Search } from "lucide-react";
+import { useState } from "react";
 import { ProductCard } from "./ProductCard";
 import { RequestConfig, RequestConfigData } from "./RequestConfig";
-import { Badge } from "@/components/ui/badge";
 
 export const AlfaScraper = () => {
   const [products, setProducts] = useState<any[]>([]);
@@ -62,7 +62,8 @@ export const AlfaScraper = () => {
 
     const filtered = products.filter((product) =>
       product.name?.toLowerCase().includes(term.toLowerCase()) ||
-      product.brand?.toLowerCase().includes(term.toLowerCase())
+      product.brand?.toLowerCase().includes(term.toLowerCase()) ||
+      String(product.gtin || "").toLowerCase().includes(term.toLowerCase())
     );
     setFilteredProducts(filtered);
   };
@@ -99,12 +100,14 @@ export const AlfaScraper = () => {
 
   const handleExportCSV = () => {
     const headers = [
+      "GTIN",
       "ID", "Nome", "Descrição", "Marca", "Preço", "Preço Promocional",
       "Desconto (%)", "Em Promoção", "Unidade de Venda", "Vendas", "Estoque",
       "Promoção Ativa", "Nome da Promoção", "Tipo de Promoção", "Data Início", "Data Fim"
     ];
 
     const rows = filteredProducts.map((p) => [
+      `"${p.gtin || ""}"`,
       `"${p.id || ""}"`,
       `"${p.name || ""}"`,
       `"${p.description || ""}"`,

@@ -18,6 +18,7 @@ interface MarconProduct {
   id: string;
   name: string;
   description: string;
+  gtin?: string;
   brand: string;
   price: number;
   promotionalPrice?: number;
@@ -74,6 +75,16 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
     const hits = data?.hits || [];
     const total = typeof data?.total === 'number' ? data.total : undefined;
 
+    // Debug: log first hit shape to help identify where `gtin` may be located
+    if (hits.length > 0) {
+      try {
+        console.log('Sample hit keys:', Object.keys(hits[0]));
+        console.log('Sample hit preview:', JSON.stringify(hits[0], null, 2));
+      } catch (e) {
+        // ignore logging errors
+      }
+    }
+
     console.log(`→ ${hits.length} products fetched (from=${from}, pageSize=${pageSize}, total=${total})`);
 
     allHits = allHits.concat(hits);
@@ -103,6 +114,8 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
 
     return {
       id: product.id || '',
+      // mapeamento do GTIN / EAN / barcode quando disponível — cobre campos aninhados
+      gtin: product.gtin || '',
       name: product.name || '',
       description: product.description || '',
       brand: product.brandName || '',

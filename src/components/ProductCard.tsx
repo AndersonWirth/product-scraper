@@ -1,6 +1,6 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { ExternalLink } from "lucide-react";
 
 interface ProductCardProps {
@@ -9,12 +9,34 @@ interface ProductCardProps {
 }
 
 export const ProductCard = ({ product, storeType }: ProductCardProps) => {
+  const normalizePrice = (value: any) => {
+    if (!value) return 0;
+    return Number(
+      String(value)
+        .replace("R$", "")
+        .replace(/\./g, "")
+        .replace(",", ".")
+        .trim()
+    );
+  };
+
+  const formatPrice = (value: any) => {
+    if (!value && value !== 0) return "R$ 0,00";
+    return String(value).includes("R$")
+      ? String(value)
+      : `R$ ${value}`;
+  };
+
+  // ===========================================================
+  // RENDER ITALO
+  // ===========================================================
+
   const renderItaloProduct = () => (
     <>
       <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted">
-        {product.image ? (
+        {product.image || product.thumb ? (
           <img
-            src={product.image}
+            src={product.image || product.thumb}
             alt={product.name}
             className="h-full w-full object-cover transition-transform hover:scale-105"
             loading="lazy"
@@ -25,21 +47,28 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
           </div>
         )}
       </div>
-      
+
       <CardContent className="flex-1 p-4">
         <h3 className="mb-2 line-clamp-2 text-sm font-semibold">
           {product.name || "Sem nome"}
         </h3>
-        
+
         <div className="flex items-baseline gap-2 flex-wrap">
           {product.special ? (
             <>
+              {/* Preço especial */}
               <span className="text-2xl font-bold text-secondary">
-                R$ {product.special}
+                {formatPrice(product.special)}
               </span>
-              <span className="text-sm line-through text-muted-foreground">
-                R$ {product.price}
-              </span>
+
+              {/* Preço original só se for diferente */}
+              {normalizePrice(product.price) !== normalizePrice(product.special) && (
+                <span className="text-sm line-through text-muted-foreground">
+                  {formatPrice(product.price)}
+                </span>
+              )}
+
+              {/* Badge de desconto */}
               {product.discount && (
                 <Badge className="bg-warning text-warning-foreground font-bold">
                   -{product.discount}%
@@ -47,12 +76,13 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
               )}
             </>
           ) : (
+            /* Sem special */
             <span className="text-2xl font-bold text-primary">
-              R$ {product.price}
+              {formatPrice(product.price)}
             </span>
           )}
         </div>
-        
+
         {product.href && (
           <Button
             variant="outline"
@@ -67,6 +97,10 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
       </CardContent>
     </>
   );
+
+  // ===========================================================
+  // RENDER MARCON / ALFA
+  // ===========================================================
 
   const renderMarconAlfaProduct = () => (
     <>
@@ -84,7 +118,7 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
           </div>
         )}
       </div>
-      
+
       <CardContent className="flex-1 p-4 space-y-3">
         <div>
           {product.brand && (
@@ -100,26 +134,38 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
               {product.description}
             </p>
           )}
+
+          {product.gtin && (
+            <p className="text-xs text-muted-foreground mt-1">GTIN: <span className="font-medium text-foreground">{product.gtin}</span></p>
+          )}
         </div>
-        
+
         <div className="flex items-baseline gap-2 flex-wrap">
           {product.promotionalPrice ? (
             <>
+              {/* Preço promocional */}
               <span className="text-2xl font-bold text-secondary">
-                R$ {product.promotionalPrice.toFixed(2)}
+                {formatPrice(product.promotionalPrice.toFixed(2))}
               </span>
-              <span className="text-sm line-through text-muted-foreground">
-                R$ {product.price.toFixed(2)}
-              </span>
+
+              {/* Preço original — só se for diferente */}
+              {normalizePrice(product.price) !==
+                normalizePrice(product.promotionalPrice) && (
+                <span className="text-sm line-through text-muted-foreground">
+                  {formatPrice(product.price.toFixed(2))}
+                </span>
+              )}
+
+              {/* Badge de desconto */}
               {product.discount && product.discount > 0 && (
                 <Badge className="bg-warning text-warning-foreground font-bold">
-                  Desconto
+                  -{product.discount}%
                 </Badge>
               )}
             </>
           ) : (
             <span className="text-2xl font-bold text-primary">
-              R$ {product.price.toFixed(2)}
+              {formatPrice(product.price?.toFixed(2))}
             </span>
           )}
         </div>
@@ -127,19 +173,25 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
         <div className="space-y-1 text-xs text-muted-foreground border-t pt-2">
           {product.stock !== undefined && (
             <div>
-              Em estoque: <span className="font-medium text-foreground">
-                {product.stock.toFixed(2)} {product.salesUnit || 'UN'}
+              Em estoque:{" "}
+              <span className="font-medium text-foreground">
+                {product.stock.toFixed(2)} {product.salesUnit || "UN"}
               </span>
             </div>
           )}
-          
-          {(product.minQuantity !== undefined || product.maxQuantity !== undefined) && (
+
+          {(product.minQuantity !== undefined ||
+            product.maxQuantity !== undefined) && (
             <div className="flex gap-2">
               {product.minQuantity !== undefined && (
-                <span>Mín: {product.minQuantity} {product.salesUnit || 'UN'}</span>
+                <span>
+                  Mín: {product.minQuantity} {product.salesUnit || "UN"}
+                </span>
               )}
               {product.maxQuantity !== undefined && (
-                <span>• Máx: {product.maxQuantity} {product.salesUnit || 'UN'}</span>
+                <span>
+                  • Máx: {product.maxQuantity} {product.salesUnit || "UN"}
+                </span>
               )}
             </div>
           )}
@@ -151,13 +203,13 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
               Em Promoção
             </Badge>
           )}
-          
+
           {product.salesCount > 0 && (
             <Badge variant="outline" className="text-xs">
               {product.salesCount} vendas
             </Badge>
           )}
-          
+
           {product.stock < 10 && product.stock > 0 && (
             <Badge variant="destructive" className="text-xs">
               Estoque Baixo
@@ -177,8 +229,10 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
             )}
             {(product.startDate || product.endDate) && (
               <p className="text-xs text-muted-foreground">
-                {product.startDate && `De ${new Date(product.startDate).toLocaleDateString('pt-BR')}`}
-                {product.endDate && ` até ${new Date(product.endDate).toLocaleDateString('pt-BR')}`}
+                {product.startDate &&
+                  `De ${new Date(product.startDate).toLocaleDateString("pt-BR")}`}
+                {product.endDate &&
+                  ` até ${new Date(product.endDate).toLocaleDateString("pt-BR")}`}
               </p>
             )}
           </div>
@@ -189,7 +243,9 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
 
   return (
     <Card className="overflow-hidden transition-shadow hover:shadow-lg flex flex-col">
-      {storeType === "italo" ? renderItaloProduct() : renderMarconAlfaProduct()}
+      {storeType === "italo"
+        ? renderItaloProduct()
+        : renderMarconAlfaProduct()}
     </Card>
   );
 };
