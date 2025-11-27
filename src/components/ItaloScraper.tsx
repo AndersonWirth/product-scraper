@@ -55,26 +55,43 @@ export const ItaloScraper = () => {
 
   const handleScrape = async () => {
     setLoading(true);
+    setProducts([]);
+    setFilteredProducts([]);
     
     try {
-      const { data, error } = await supabase.functions.invoke("scrape-italo", {
-        body: { department: selectedDepartment },
-      });
+      let allProducts: Product[] = [];
+      let cursor: number | null = 0;
 
-      if (error) throw error;
-
-      if (data.success) {
-        setProducts(data.products);
-        setFilteredProducts(data.products);
-        toast({
-          title: "Sucesso!",
-          description: `${data.total} produtos encontrados`,
+      // Busca em múltiplos batches até não haver mais categorias (cursor === null)
+      while (cursor !== null) {
+        const { data, error } = await supabase.functions.invoke("scrape-italo", {
+          body: { department: selectedDepartment, cursor },
         });
+
+        if (error) throw error;
+
+        if (!data?.success) {
+          throw new Error(data?.error || "Falha ao buscar produtos");
+        }
+
+        if (Array.isArray(data.products)) {
+          allProducts = allProducts.concat(data.products as Product[]);
+        }
+
+        cursor = data.cursor ?? null;
       }
+
+      setProducts(allProducts);
+      setFilteredProducts(allProducts);
+      
+      toast({
+        title: "Sucesso!",
+        description: `${allProducts.length} produtos encontrados`,
+      });
     } catch (error: any) {
       toast({
         title: "Erro ao buscar produtos",
-        description: error.message,
+        description: error.message || "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
