@@ -9,90 +9,46 @@ const corsHeaders = {
 // Lista completa de paths de categorias
 const ALL_PATHS = [
   "homepage", // Página inicial - Promoções/Destaque
-  "10950",
-  "11744",
-  "10735_10744",
-  "10735_10736",
-  "10735_10752",
-  "10735_10761",
-  "10735_10757",
-  "10735_10765",
-  "10735",
-  "11001_11068",
-  "11001_11049",
-  "11001_11025",
-  "11001_11072",
-  "11001_11042",
-  "11001_11056",
-  "11001_11027",
-  "11001_11020",
-  "11001_11038",
-  "11001_11064",
-  "11001_11058",
-  "11001_11005",
-  "11001_11023",
-  "11001_11003",
-  "11001",
-  "10950_10952",
-  "10950_10967",
-  "10950_10964",
-  "10950",
-  "11077_11218",
-  "11077_11144",
-  "11077_11086",
-  "11077_11096",
-  "11077_11100",
-  "11077_11128",
-  "11077_11105",
-  "11077_11079",
-  "11077_11133",
-  "11077_11136",
-  "11077_11214",
-  "11077_11241",
-  "11077_11108",
-  "11077_11229",
-  "11077_11148",
-  "11077_11195",
-  "11077_11142",
-  "11077_11225",
-  "11077_11112",
-  "11077_11114",
-  "11077_11222",
-  "11077_11190",
-  "11077_11090",
-  "11077_11209",
+  "10950", "11744_11745", "10735", "11001",
+  "10735_10744", "10735_10736", "10735_10752", "10735_10761", "10735_10757", "10735_10765",
+  "11001_11068", "11001_11049", "11001_11025", "11001_11072", "11001_11042", "11001_11056",
+  "11001_11027", "11001_11020", "11001_11038", "11001_11064", "11001_11058", "11001_11005",
+  "11001_11023", "11001_11003",
+  "10950_10952", "10950_10967", "10950_10964",
+  "11077_11218", "11077_11144", "11077_11086", "11077_11096", "11077_11100", "11077_11128",
+  "11077_11105", "11077_11079", "11077_11133", "11077_11136", "11077_11214", "11077_11241",
+  "11077_11108", "11077_11229", "11077_11148", "11077_11195", "11077_11142", "11077_11225",
+  "11077_11112", "11077_11114", "11077_11222", "11077_11190", "11077_11090", "11077_11209",
   "11077_11116",
-  "11077",
-  "11744_11745",
-  "11744_11746",
-  "11744_11752",
-  "11744_11751",
-  "11744_11748",
-  "11744_11750",
-  "11744_11747",
-  "11744_11749",
-  "11744",
-  "10983_10985",
-  "10983_10993",
-  "10983_11000",
-  "10983_10999",
-  "10983_10989",
-  "10983",
-  "11250_11280",
-  "11250_11353",
-  "11250_11257",
-  "11250_11315",
-  "11250_11375",
-  "11250_11319",
-  "11250_11322",
-  "11250_11294",
-  "11250_11325",
-  "11250_11288",
-  "11250_11271",
-  "11250_11274",
-  "11250_11330",
-  "11250_11299",
-  "11250_11327",
+  "11744_11746", "11744_11752", "11744_11751", "11744_11748", "11744_11750", "11744_11747",
+  "11744_11749", "11744",
+  "10983_10985", "10983_10993", "10983_11000", "10983_10999", "10983_10989",
+  "11250_11280", "11250_11353", "11250_11257", "11250_11315", "11250_11375", "11250_11319",
+  "11250_11322", "11250_11294", "11250_11325", "11250_11288", "11250_11271", "11250_11274",
+  "11250_11330", "11250_11299", "11250_11327", "11250_11347", "11250_11379", "11250_11266",
+  "11250_11260", "11250_11345", "11250_11350", "11250_11337", "11250_11252",
+  "10572_10598", "10572_10727", "10572_10573", "10572_10730", "10572_10610", "10572_10583",
+  "10572_10619", "10572_10723", "10572_10604",
+  "10275_10277", "10275_10540", "10275_10555", "10275_10321", "10275_10283", "10275_10347",
+  "10275_10335", "10275_10323", "10275_10356", "10275_10341", "10275_10338", "10275_10353",
+  "10275_10382", "10275_10345", "10275_10344", "10275_10304", "10275_10361", "10275_10371",
+  "10275_10298", "10275_10293", "10275_10358", "10275_10350", "10275_10348", "10275_10317",
+  "10275_10308", "10275_10346", "10275_10349", "10275_10329", "10275_10306", "10275_10563",
+  "10275_10319", "10275_10301", "10275_10333", "10275_10314", "10275_10326", "10275_10310",
+  "10186_10212", "10186_10192", "10186_10466", "10186_10460", "10186_10160", "10186_10492",
+  "10186_10409", "10186_10435", "10186_10526", "10186_10228", "10186_10188", "10186_12095",
+  "10186_10508", "10186_10200", "10186_10494", "10186_10487", "10186_10471", "10186_10444",
+  "10186_10201", "10186_10537", "10186_10263", "10186_10503", "10186_10489", "10186_10474",
+  "11385_11410", "11385_11400", "11385_11386",
+  "10865_10905", "10865_10805", "10865_10907", "10865_10880", "10865_10867", "10865_10928",
+  "10865_10815", "10865_10926", "10865_10919", "10865_10909", "10865_10844", "10865_10911",
+  "10624_10644", "10624_10656", "10624_10630", "10624_10676", "10624_10680", "10624_10650",
+  "10624_10688", "10624_10673", "10624_10635", "10624_10691", "10624_10683", "10624_10715",
+  "10624_10711", "10624_10705", "10624_10698", "10624_10718", "10624_10625", "10624_10661",
+  "10624_10694", "10624_10702",
+  "11549_11520", "11549_11778", "11549_11550", "11549_11563", "11549_11782", "11549_11737",
+  "11549_11789", "11549_11791", "11549_11507", "11549_11713", "11549_11513", "11549_11475",
+  "11549_11753", "11549_11688", "11549_11415", "11549_11651", "11549_11764", "11549_11731"
 ];
 
 const DEFAULT_HEADERS = {
@@ -174,24 +130,81 @@ function calculateDiscount(price: string, special: string): number {
   return 0;
 }
 
+function detectLastPage(html: string): number {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  
+  if (!doc) return 1;
+  
+  const paginationLinks = doc.querySelectorAll(".pagination li a");
+  const pageNumbers: number[] = [];
+  
+  paginationLinks.forEach((link) => {
+    const text = link.textContent?.trim();
+    const pageNum = parseInt(text || "");
+    if (!isNaN(pageNum)) {
+      pageNumbers.push(pageNum);
+    }
+  });
+  
+  return pageNumbers.length > 0 ? Math.max(...pageNumbers) : 1;
+}
+
 async function processCategory(categoryPath: string): Promise<any[]> {
   const cleanPath = categoryPath.replace(/amp;/g, "");
-  let url: string;
+  let baseUrl: string;
   
   if (cleanPath === "homepage") {
-    url = "https://online.superitalo.com.br/";
+    baseUrl = "https://online.superitalo.com.br/";
   } else {
-    url = `https://online.superitalo.com.br/index.php?route=product/category&path=${cleanPath}`;
+    baseUrl = `https://online.superitalo.com.br/index.php?route=product/category&path=${cleanPath}`;
   }
   
-  console.log("Baixando:", url);
+  console.log("Baixando:", baseUrl);
   
   try {
-    const html = await fetchHtml(url);
-    const products = extractArgsFromHtml(html);
+    // Busca primeira página para detectar total de páginas
+    const firstPageHtml = await fetchHtml(baseUrl);
+    const lastPage = detectLastPage(firstPageHtml);
     
-    // Adiciona cálculo de desconto para produtos com preço especial
-    const productsWithDiscount = products.map(product => {
+    // Extrai produtos da primeira página
+    const firstPageProducts = extractArgsFromHtml(firstPageHtml);
+    
+    // Se houver mais páginas, busca todas em paralelo
+    if (lastPage > 1) {
+      console.log(`→ ${cleanPath}: detectadas ${lastPage} páginas`);
+      
+      const otherPagePromises = [];
+      for (let page = 2; page <= lastPage; page++) {
+        const pageUrl = `${baseUrl}&page=${page}`;
+        otherPagePromises.push(
+          fetchHtml(pageUrl)
+            .then(html => extractArgsFromHtml(html))
+            .catch(err => {
+              console.error(`Erro na página ${page} de ${cleanPath}:`, err);
+              return [];
+            })
+        );
+      }
+      
+      const otherPagesProducts = await Promise.all(otherPagePromises);
+      const allProducts = [...firstPageProducts, ...otherPagesProducts.flat()];
+      
+      // Adiciona cálculo de desconto
+      const productsWithDiscount = allProducts.map(product => {
+        if (product.price && product.special) {
+          const discount = calculateDiscount(product.price, product.special);
+          return { ...product, discount: discount > 0 ? discount : undefined };
+        }
+        return product;
+      });
+      
+      console.log(`✅ ${cleanPath}: ${productsWithDiscount.length} produtos (${lastPage} páginas)`);
+      return productsWithDiscount;
+    }
+    
+    // Apenas 1 página
+    const productsWithDiscount = firstPageProducts.map(product => {
       if (product.price && product.special) {
         const discount = calculateDiscount(product.price, product.special);
         return { ...product, discount: discount > 0 ? discount : undefined };
@@ -199,10 +212,10 @@ async function processCategory(categoryPath: string): Promise<any[]> {
       return product;
     });
     
-    console.log(`→ ${productsWithDiscount.length} produtos encontrados em ${cleanPath}`);
+    console.log(`✅ ${cleanPath}: ${productsWithDiscount.length} produtos (1 página)`);
     return productsWithDiscount;
   } catch (err) {
-    console.error("Erro ao baixar categoria:", cleanPath, "-", err);
+    console.error("❌ Erro ao baixar categoria:", cleanPath, "-", err);
     return [];
   }
 }
@@ -228,14 +241,14 @@ serve(async (req) => {
     let allProducts: any[] = [];
     
     // Processa categorias em batches para evitar timeout
-    const batchSize = 10;
+    const batchSize = 5; // Reduzido porque agora processa múltiplas páginas por categoria
     for (let i = 0; i < pathsToScrape.length; i += batchSize) {
       const batch = pathsToScrape.slice(i, i + batchSize);
       const batchResults = await Promise.all(
         batch.map(path => processCategory(path))
       );
       allProducts.push(...batchResults.flat());
-      console.log(`Processados ${i + batch.length}/${pathsToScrape.length} paths`);
+      console.log(`Processados ${Math.min(i + batch.length, pathsToScrape.length)}/${pathsToScrape.length} categorias`);
     }
     
     console.log(`Total de produtos encontrados: ${allProducts.length}`);
