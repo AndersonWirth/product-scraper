@@ -227,7 +227,10 @@ serve(async (req) => {
   }
 
   try {
-    const { department } = await req.json();
+    const body = (req.method === 'POST' || req.method === 'PUT')
+      ? await req.json()
+      : {};
+    const { department, cursor, maxCategories } = body ?? {};
     
     let pathsToScrape = ALL_PATHS;
     
@@ -236,28 +239,75 @@ serve(async (req) => {
       pathsToScrape = ALL_PATHS.filter(path => path.startsWith(department));
     }
     
-    console.log(`Iniciando scraping de ${pathsToScrape.length} categorias...`);
+    const totalCategories = pathsToScrape.length;
+
+    if (totalCategories === 0) {
+      console.log("Nenhuma categoria encontrada para o filtro aplicado");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          products: [],
+          total: 0,
+          cursor: null,
+          remainingCategories: 0,
+          processedCategories: 0,
+          totalCategories: 0,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      );
+    }
+
+    const effectiveMax =
+      typeof maxCategories === 'number' && maxCategories > 0
+        ? Math.min(maxCategories, totalCategories)
+        : 35; // quantidade máxima de categorias por execução
+
+    const startIndex =
+      typeof cursor === 'number' && cursor >= 0 && cursor < totalCategories
+        ? cursor
+        : 0;
+
+    const endIndex = Math.min(startIndex + effectiveMax, totalCategories);
+    const currentPaths = pathsToScrape.slice(startIndex, endIndex);
+
+    console.log(
+      `Iniciando scraping de categorias ${startIndex} até ${endIndex - 1} (total: ${totalCategories})...`,
+    );
     
     let allProducts: any[] = [];
     
-    // Processa categorias em batches para evitar timeout
-    const batchSize = 5; // Reduzido porque agora processa múltiplas páginas por categoria
-    for (let i = 0; i < pathsToScrape.length; i += batchSize) {
-      const batch = pathsToScrape.slice(i, i + batchSize);
+    // Processa categorias em batches pequenas para evitar estouro de CPU
+    const batchSize = 5; // já processa múltiplas páginas por categoria
+    for (let i = 0; i < currentPaths.length; i += batchSize) {
+      const batch = currentPaths.slice(i, i + batchSize);
       const batchResults = await Promise.all(
-        batch.map(path => processCategory(path))
+        batch.map(path => processCategory(path)),
       );
       allProducts.push(...batchResults.flat());
-      console.log(`Processados ${Math.min(i + batch.length, pathsToScrape.length)}/${pathsToScrape.length} categorias`);
+      console.log(
+        `Processados ${startIndex + Math.min(i + batch.length, currentPaths.length)}/${totalCategories} categorias`,
+      );
     }
     
-    console.log(`Total de produtos encontrados: ${allProducts.length}`);
+    const nextCursor = endIndex < totalCategories ? endIndex : null;
+    const remainingCategories = totalCategories - endIndex;
+
+    console.log(
+      `Batch concluído: ${allProducts.length} produtos. Próximo cursor: ${nextCursor}, restantes: ${remainingCategories}`,
+    );
     
     return new Response(
       JSON.stringify({ 
         success: true, 
         products: allProducts,
-        total: allProducts.length 
+        total: allProducts.length,
+        cursor: nextCursor,
+        remainingCategories,
+        processedCategories: currentPaths.length,
+        totalCategories,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
