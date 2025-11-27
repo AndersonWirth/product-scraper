@@ -263,7 +263,7 @@ serve(async (req) => {
     const effectiveMax =
       typeof maxCategories === 'number' && maxCategories > 0
         ? Math.min(maxCategories, totalCategories)
-        : 35; // quantidade máxima de categorias por execução
+        : 8; // quantidade máxima de categorias por execução (reduzido para evitar WORKER_LIMIT)
 
     const startIndex =
       typeof cursor === 'number' && cursor >= 0 && cursor < totalCategories
@@ -280,7 +280,7 @@ serve(async (req) => {
     let allProducts: any[] = [];
     
     // Processa categorias em batches pequenas para evitar estouro de CPU
-    const batchSize = 5; // já processa múltiplas páginas por categoria
+    const batchSize = 4; // reduzido porque agora processa menos categorias por execução
     for (let i = 0; i < currentPaths.length; i += batchSize) {
       const batch = currentPaths.slice(i, i + batchSize);
       const batchResults = await Promise.all(
