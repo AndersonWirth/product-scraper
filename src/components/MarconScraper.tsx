@@ -80,8 +80,14 @@ export const MarconScraper = () => {
       if (error) throw error;
 
       if (data.success) {
+        console.log('✅ RESPOSTA RECEBIDA');
+        console.log('Total:', data.total);
+        console.log('Primeiro produto COMPLETO:', data.products[0]);
+        console.log('GTIN:', data.products[0]?.gtin);
+
         setProducts(data.products);
         setFilteredProducts(data.products);
+        
         toast({
           title: "Sucesso!",
           description: `${data.total} produtos encontrados em ${requests.length} requisições`,

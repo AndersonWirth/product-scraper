@@ -135,8 +135,11 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
             </p>
           )}
 
-          {product.gtin && (
-            <p className="text-xs text-muted-foreground mt-1">GTIN: <span className="font-medium text-foreground">{product.gtin}</span></p>
+          {/* GTIN - MOSTRA TUDO */}
+          {String(product.gtin).trim() && (
+            <p className="text-xs text-muted-foreground mt-1">
+              GTIN: <span className="font-medium text-foreground">{product.gtin}</span>
+            </p>
           )}
         </div>
 
@@ -151,10 +154,10 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
               {/* Preço original — só se for diferente */}
               {normalizePrice(product.price) !==
                 normalizePrice(product.promotionalPrice) && (
-                <span className="text-sm line-through text-muted-foreground">
-                  {formatPrice(product.price.toFixed(2))}
-                </span>
-              )}
+                  <span className="text-sm line-through text-muted-foreground">
+                    {formatPrice(product.price.toFixed(2))}
+                  </span>
+                )}
 
               {/* Badge de desconto */}
               {product.discount && product.discount > 0 && (
@@ -182,19 +185,19 @@ export const ProductCard = ({ product, storeType }: ProductCardProps) => {
 
           {(product.minQuantity !== undefined ||
             product.maxQuantity !== undefined) && (
-            <div className="flex gap-2">
-              {product.minQuantity !== undefined && (
-                <span>
-                  Mín: {product.minQuantity} {product.salesUnit || "UN"}
-                </span>
-              )}
-              {product.maxQuantity !== undefined && (
-                <span>
-                  • Máx: {product.maxQuantity} {product.salesUnit || "UN"}
-                </span>
-              )}
-            </div>
-          )}
+              <div className="flex gap-2">
+                {product.minQuantity !== undefined && (
+                  <span>
+                    Mín: {product.minQuantity} {product.salesUnit || "UN"}
+                  </span>
+                )}
+                {product.maxQuantity !== undefined && (
+                  <span>
+                    • Máx: {product.maxQuantity} {product.salesUnit || "UN"}
+                  </span>
+                )}
+              </div>
+            )}
         </div>
 
         <div className="flex flex-wrap gap-1.5 items-center">

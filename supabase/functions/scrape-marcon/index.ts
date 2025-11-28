@@ -18,7 +18,7 @@ interface MarconProduct {
   id: string;
   name: string;
   description: string;
-  gtin?: string;
+  gtin?: string | null;
   brand: string;
   price: number;
   promotionalPrice?: number;
@@ -111,7 +111,7 @@ console.log(allHits);
     const price = parseFloat(product.pricing?.price) || 0;
     const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
     const discount = product.pricing?.discount || 0;
-debugger
+
     console.log(product);
 
     console.log('🔍 Product ID:', product.id);
