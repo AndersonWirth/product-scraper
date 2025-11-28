@@ -66,7 +66,7 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
         'Accept': 'application/json',
       },
     });
-
+debugger
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -88,7 +88,7 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
     console.log(`→ ${hits.length} products fetched (from=${from}, pageSize=${pageSize}, total=${total})`);
 
     allHits = allHits.concat(hits);
-
+console.log('Anderson ' + allHits);
     if (hits.length < pageSize) {
       // Última página
       break;
@@ -106,16 +106,27 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
   }
 
   console.log(`Total hits collected: ${allHits.length}`);
-
+console.log(allHits);
   return allHits.map((product: any) => {
     const price = parseFloat(product.pricing?.price) || 0;
     const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
     const discount = product.pricing?.discount || 0;
+debugger
+    console.log(product);
 
+    console.log('🔍 Product ID:', product.id);
+    console.log('🔍 All keys:', Object.keys(product).join(', '));
+    console.log('🔍 GTIN candidates:', {
+      gtin: product.gtin,
+      ean: product.ean,
+      barcode: product.barcode,
+      code: product.code,
+      identification: product.identification,
+    });
     return {
       id: product.id || '',
       // mapeamento do GTIN / EAN / barcode quando disponível — cobre campos aninhados
-      gtin: product.gtin || '',
+      gtin: product.gtin || product.ean || product.barcode || product.code || '',
       name: product.name || '',
       description: product.description || '',
       brand: product.brandName || '',
