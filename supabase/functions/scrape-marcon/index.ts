@@ -18,7 +18,7 @@ interface MarconProduct {
   id: string;
   name: string;
   description: string;
-  gtin?: string | null;
+  gtin?: string;
   brand: string;
   price: number;
   promotionalPrice?: number;
@@ -66,7 +66,7 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
         'Accept': 'application/json',
       },
     });
-debugger
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -75,22 +75,16 @@ debugger
     const hits = data?.hits || [];
     const total = typeof data?.total === 'number' ? data.total : undefined;
 
-    // Debug: log first hit shape to help identify where `gtin` may be located
     if (hits.length > 0) {
-      try {
-        console.log('Sample hit keys:', Object.keys(hits[0]));
-        console.log('Sample hit preview:', JSON.stringify(hits[0], null, 2));
-      } catch (e) {
-        // ignore logging errors
-      }
+      console.log('✅ Sample hit keys:', Object.keys(hits[0]));
+      console.log('🏷️ GTIN value:', hits[0].gtin);
     }
 
-    console.log(`→ ${hits.length} products fetched (from=${from}, pageSize=${pageSize}, total=${total})`);
+    console.log(`→ ${hits.length} products fetched`);
 
     allHits = allHits.concat(hits);
-console.log('Anderson ' + allHits);
+
     if (hits.length < pageSize) {
-      // Última página
       break;
     }
 
@@ -106,26 +100,14 @@ console.log('Anderson ' + allHits);
   }
 
   console.log(`Total hits collected: ${allHits.length}`);
-console.log(allHits);
+
   return allHits.map((product: any) => {
     const price = parseFloat(product.pricing?.price) || 0;
     const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
     const discount = product.pricing?.discount || 0;
 
-    console.log(product);
-
-    console.log('🔍 Product ID:', product.id);
-    console.log('🔍 All keys:', Object.keys(product).join(', '));
-    console.log('🔍 GTIN candidates:', {
-      gtin: product.gtin,
-      ean: product.ean,
-      barcode: product.barcode,
-      code: product.code,
-      identification: product.identification,
-    });
     return {
       id: product.id || '',
-      // mapeamento do GTIN / EAN / barcode quando disponível — cobre campos aninhados
       gtin: product.gtin || product.ean || product.barcode || product.code || '',
       name: product.name || '',
       description: product.description || '',
@@ -169,12 +151,12 @@ serve(async (req) => {
 
     const flatProducts = allProducts.flat();
     
-    // Remove duplicados por ID
     const uniqueProducts = Array.from(
       new Map(flatProducts.map(p => [p.id, p])).values()
     );
 
     console.log(`Found ${uniqueProducts.length} unique products`);
+    console.log('First product GTIN:', uniqueProducts[0]?.gtin);
 
     return new Response(
       JSON.stringify({
