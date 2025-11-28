@@ -1,20 +1,161 @@
-import { Badge } from "@/components/ui/badge";
+// MarconScraper.tsx — ARQUIVO FINAL COMPLETO UNIFICADO
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Download, Loader2, Plus, Search } from "lucide-react";
+import { Loader2, Search, TestTube } from "lucide-react";
 import { useState } from "react";
 import { ProductCard } from "./ProductCard";
-import { RequestConfig, RequestConfigData } from "./RequestConfig";
+import { RequestConfigData } from "./RequestConfig";
+
+// =======================================================
+// TIPAGEM DOS PRODUTOS (mapeados da API LA MARCON)
+// =======================================================
+
+interface MarconProduct {
+  id: string;
+  name: string;
+  description: string;
+  gtin?: string;
+  brand: string;
+  price: number;
+  promotionalPrice?: number;
+  discount?: number;
+  inPromotion: boolean;
+  salesUnit: string;
+  salesCount: number;
+  stock: number;
+  promotionActive: boolean;
+  promotionName?: string;
+  promotionType?: string;
+  startDate?: string;
+  endDate?: string;
+  image?: string;
+}
+
+// =======================================================
+// FETCH LOCAL PARA DEBUG — COMPLETO
+// =======================================================
+
+async function fetchProductsLocal(config: RequestConfig): Promise<MarconProduct[]> {
+  const pageSize = Math.min(1000, config.limit || 1000);
+  const maxTotal = config.limit || 1000;
+
+  let from = 0;
+  let allHits: any[] = [];
+
+  while (allHits.length < maxTotal) {
+    const params = new URLSearchParams();
+
+    params.append("promotion", config.promotion ? "true" : "false");
+    params.append("brands", "");
+    if (config.categoryId) params.append("categories", config.categoryId);
+    params.append("tags", "");
+    params.append("personas", "");
+    params.append("size", pageSize.toString());
+    params.append("from", from.toString());
+    if (config.search) params.append("search", config.search);
+    params.append("sortField", config.sortField);
+    params.append("sortOrder", config.sortOrder);
+
+    const url = `https://sense.osuper.com.br/16/32/search?${params.toString()}`;
+
+    console.log(`📡 Fetching: ${url}`);
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const hits = data?.hits || [];
+    const total = typeof data?.total === "number" ? data.total : undefined;
+
+    if (hits.length > 0) {
+      console.log("✅ PRIMEIRO PRODUTO BRUTO DA API:", hits[0]);
+      console.log("🏷️ GTIN NO PRODUTO BRUTO:", hits[0]?.gtin);
+      console.log("📋 TODOS OS CAMPOS:", Object.keys(hits[0]));
+    }
+
+    console.log(`→ ${hits.length} produtos buscados`);
+
+    allHits = allHits.concat(hits);
+
+    if (hits.length < pageSize) break;
+    if (total !== undefined && from + pageSize >= total) break;
+
+    from += pageSize;
+    if (allHits.length >= maxTotal) break;
+  }
+
+  console.log(`✨ Total de produtos coletados: ${allHits.length}`);
+
+  return allHits.map((product: any, index: number) => {
+    const price = parseFloat(product.pricing?.price) || 0;
+    const promotionalPrice = product.pricing?.promotionalPrice
+      ? parseFloat(product.pricing.promotionalPrice)
+      : undefined;
+    const discount = product.pricing?.discount || 0;
+
+    if (index === 0) {
+      console.log("========== DEBUG DO PRIMEIRO PRODUTO ==========");
+      console.log("ID:", product.gtin, product.ean, product.barcode, product.code);
+      console.log("GTIN original:", product.gtin);
+      console.log("EAN:", product.ean);
+      console.log("Barcode:", product.barcode);
+      console.log("Code:", product.code);
+      console.log("Nome:", product.name);
+    }
+
+    const mapped: MarconProduct = {
+      id: product.id || "",
+      gtin: product.gtin || product.ean || product.barcode || product.code || "",
+      name: product.name || "",
+      description: product.description || "",
+      brand: product.brandName || "",
+      price,
+      promotionalPrice,
+      discount: discount > 0 ? discount : undefined,
+      inPromotion: product.pricing?.promotion || false,
+      salesUnit: product.saleUnit || "UN",
+      salesCount: parseInt(product.salesCount) || 0,
+      stock: parseInt(product.quantity?.inStock) || 0,
+      promotionActive: product.promotions?.active || false,
+      promotionName: product.promotions?.promotionName,
+      promotionType: product.promotions?.promotionType,
+      startDate: product.promotions?.startDate,
+      endDate: product.promotions?.endDate,
+      image: product.image || "",
+    };
+
+    if (index === 0) {
+      console.log("GTIN após mapeamento:", mapped.gtin);
+      console.log("Objeto completo:", mapped);
+      console.log("=============================================");
+    }
+
+    return mapped;
+  });
+}
+
+// =======================================================
+// COMPONENTE PRINCIPAL
+// =======================================================
 
 export const MarconScraper = () => {
+  const { toast } = useToast();
+
   const [products, setProducts] = useState<any[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [testMode, setTestMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [requestsCount, setRequestsCount] = useState(0);
-  const { toast } = useToast();
 
   const [requests, setRequests] = useState<RequestConfigData[]>([
     {
@@ -28,74 +169,46 @@ export const MarconScraper = () => {
     },
   ]);
 
-  const handleAddRequest = () => {
-    setRequests([
-      ...requests,
-      {
-        id: crypto.randomUUID(),
+  // ===================================================
+  // TESTE LOCAL (DEBUG) — TOTALMENTE INTEGRADO
+  // ===================================================
+
+  const handleTestLocal = async () => {
+    setLoading(true);
+    setTestMode(true);
+
+    try {
+      console.log("🧪 INICIANDO TESTE LOCAL...");
+
+      const config: RequestConfigData = {
+        id: "test",
         search: "",
         categoryId: "",
         promotion: false,
-        limit: 50,
+        limit: 5,
         sortField: "sales_count",
         sortOrder: "desc",
-      },
-    ]);
-  };
+      };
 
-  const handleRemoveRequest = (id: string) => {
-    setRequests(requests.filter((r) => r.id !== id));
-  };
+      const p = await fetchProductsLocal(config);
 
-  const handleRequestChange = (id: string, field: string, value: any) => {
-    setRequests(
-      requests.map((r) => (r.id === id ? { ...r, [field]: value } : r))
-    );
-  };
+      console.log("🎉 TESTE CONCLUÍDO!");
+      console.log("Total de produtos:", p.length);
+      console.log("Primeiro produto:", p[0]);
+      console.log("GTIN do primeiro:", p[0]?.gtin);
 
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-    if (!term.trim()) {
-      setFilteredProducts(products);
-      return;
-    }
+      setProducts(p);
+      setFilteredProducts(p);
 
-    const filtered = products.filter((product) =>
-      product.name?.toLowerCase().includes(term.toLowerCase()) ||
-      product.brand?.toLowerCase().includes(term.toLowerCase()) ||
-      String(product.gtin || "").toLowerCase().includes(term.toLowerCase())
-    );
-    setFilteredProducts(filtered);
-  };
-
-  const handleFetchProducts = async () => {
-    setLoading(true);
-    setRequestsCount(requests.length);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("scrape-marcon", {
-        body: { requests },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        console.log('✅ RESPOSTA RECEBIDA');
-        console.log('Total:', data.total);
-        console.log('Primeiro produto COMPLETO:', data.products[0]);
-        console.log('GTIN:', data.products[0]?.gtin);
-
-        setProducts(data.products);
-        setFilteredProducts(data.products);
-        
-        toast({
-          title: "Sucesso!",
-          description: `${data.total} produtos encontrados em ${requests.length} requisições`,
-        });
-      }
-    } catch (error: any) {
       toast({
-        title: "Erro ao buscar produtos",
+        title: "✅ Teste Local Concluído!",
+        description: `${p.length} produtos carregados. Verifique o console (F12).`,
+      });
+    } catch (error: any) {
+      console.error("❌ Erro:", error);
+
+      toast({
+        title: "❌ Erro ao testar",
         description: error.message,
         variant: "destructive",
       });
@@ -104,138 +217,108 @@ export const MarconScraper = () => {
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = [
-      "GTIN",
-      "ID", "Nome", "Descrição", "Marca", "Preço", "Preço Promocional",
-      "Desconto (%)", "Em Promoção", "Unidade de Venda", "Vendas", "Estoque",
-      "Promoção Ativa", "Nome da Promoção", "Tipo de Promoção", "Data Início", "Data Fim"
-    ];
+  // ===================================================
+  // BUSCAR PRODUTOS (BOTÃO PRINCIPAL)
+  // ===================================================
 
-    const rows = filteredProducts.map((p) => [
-      `"${p.gtin || ""}"`,
-      `"${p.id || ""}"`,
-      `"${p.name || ""}"`,
-      `"${p.description || ""}"`,
-      `"${p.brand || ""}"`,
-      `"${p.price?.toFixed(2) || ""}"`,
-      `"${p.promotionalPrice?.toFixed(2) || ""}"`,
-      `"${p.discount || ""}"`,
-      `"${p.inPromotion ? "Sim" : "Não"}"`,
-      `"${p.salesUnit || ""}"`,
-      `"${p.salesCount || 0}"`,
-      `"${p.stock || 0}"`,
-      `"${p.promotionActive ? "Sim" : "Não"}"`,
-      `"${p.promotionName || ""}"`,
-      `"${p.promotionType || ""}"`,
-      `"${p.startDate || ""}"`,
-      `"${p.endDate || ""}"`,
-    ]);
+  const handleSearchProducts = async () => {
+    setLoading(true);
+    setTestMode(false);
 
-    const csv = [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `produtos_marcon_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
+    try {
+      const config = requests[0];
 
-    toast({
-      title: "CSV exportado!",
-      description: `${filteredProducts.length} produtos exportados`,
-    });
+      const p = await fetchProductsLocal(config);
+
+      setProducts(p);
+      setFilteredProducts(p);
+
+      toast({
+        title: "🔍 Busca concluída!",
+        description: `${p.length} produtos retornados.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // ===================================================
+  // FILTRAGEM LOCAL
+  // ===================================================
+
+  const handleFilterChange = (value: string) => {
+    setSearchTerm(value);
+
+    const filtered = products.filter((p) =>
+      p.name.toLowerCase().includes(value.toLowerCase())
+    );
+
+    setFilteredProducts(filtered);
+  };
+
+  // ===================================================
+  // ================= RENDER ==========================
+  // ===================================================
 
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        {requests.map((request, index) => (
-          <RequestConfig
-            key={request.id}
-            config={request}
-            index={index}
-            onChange={handleRequestChange}
-            onRemove={handleRemoveRequest}
-            showRemove={requests.length > 1}
-          />
-        ))}
-
         <div className="flex gap-2">
-          <Button onClick={handleAddRequest} variant="outline" className="flex-1">
-            <Plus className="mr-2 h-4 w-4" />
-            Adicionar Categoria
-          </Button>
-          <Button onClick={handleFetchProducts} disabled={loading} className="flex-1">
+          <Input
+            placeholder="Filtrar por nome..."
+            value={searchTerm}
+            onChange={(e) => handleFilterChange(e.target.value)}
+          />
+
+          <Button onClick={handleSearchProducts} disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Buscando...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Buscando...
               </>
             ) : (
-              "Buscar Produtos"
+              <>
+                <Search className="mr-2 h-4 w-4" /> Buscar Produtos
+              </>
+            )}
+          </Button>
+
+          <Button
+            variant="secondary"
+            onClick={handleTestLocal}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Testando...
+              </>
+            ) : (
+              <>
+                <TestTube className="mr-2 h-4 w-4" /> 🧪 Teste Local
+              </>
             )}
           </Button>
         </div>
+
+        {testMode && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              💡 <strong>Modo Debug Ativo!</strong> Abra o Console (F12) para ver
+              logs completos.
+            </p>
+          </div>
+        )}
       </div>
 
-      {products.length > 0 && (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar produtos..."
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Button onClick={handleExportCSV} variant="outline" className="w-full sm:w-auto">
-            <Download className="mr-2 h-4 w-4" />
-            Exportar CSV
-          </Button>
-        </div>
-      )}
-
-      {filteredProducts.length > 0 && (
-        <div className="rounded-lg bg-muted p-4 space-y-2">
-          <div className="flex gap-2 items-center flex-wrap">
-            <p className="text-sm text-muted-foreground">
-              <span className="font-bold text-foreground">{filteredProducts.length}</span> produtos
-            </p>
-            <Badge variant="secondary">
-              {requestsCount} {requestsCount === 1 ? "categoria" : "categorias"} buscadas
-            </Badge>
-            {filteredProducts.filter(p => p.stock < 10).length > 0 && (
-              <Badge variant="destructive">
-                {filteredProducts.filter(p => p.stock < 10).length} com estoque baixo
-              </Badge>
-            )}
-          </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      )}
-
-      {!loading && filteredProducts.length === 0 && products.length === 0 && (
-        <div className="rounded-lg border-2 border-dashed p-12 text-center">
-          <p className="text-muted-foreground">
-            Configure as requisições e clique em "Buscar Produtos"
-          </p>
-        </div>
-      )}
-
-      {!loading && filteredProducts.length === 0 && products.length > 0 && (
-        <div className="rounded-lg border-2 border-dashed p-12 text-center">
-          <p className="text-muted-foreground">Nenhum produto encontrado para essa busca</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredProducts.map((product, index) => (
-          <ProductCard key={`${product.id}-${index}`} product={product} storeType="marcon" />
+      {/* LISTA DE PRODUTOS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredProducts.map((product) => (
+          <ProductCard key={product.id} product={product} storeType="marcon" />
         ))}
       </div>
     </div>
