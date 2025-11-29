@@ -27,6 +27,8 @@ interface AlfaProduct {
   salesUnit: string;
   salesCount: number;
   stock: number;
+  minQuantity?: number;        // ✅ ADICIONADO
+  maxQuantity?: number;        // ✅ ADICIONADO
   promotionActive: boolean;
   promotionName?: string;
   promotionType?: string;
@@ -74,13 +76,19 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
     const data = await response.json();
     const hits = data?.hits || [];
     const total = typeof data?.total === 'number' ? data.total : undefined;
+
+    // ✅ DEBUG: Log do primeiro produto
+    if (hits.length > 0 && from === 0) {
+      console.log('✅ PRIMEIRO PRODUTO BRUTO (ALFA):', JSON.stringify(hits[0], null, 2));
+      console.log('🏷️ GTIN NO PRODUTO BRUTO:', hits[0]?.gtin);
+      console.log('📋 TODOS OS CAMPOS:', Object.keys(hits[0]));
+    }
   
     console.log(`→ ${hits.length} products fetched (from=${from}, pageSize=${pageSize}, total=${total})`);
   
     allHits = allHits.concat(hits);
   
     if (hits.length < pageSize) {
-      // Última página
       break;
     }
   
@@ -97,32 +105,26 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
 
   console.log(`Total hits collected: ${allHits.length}`);
 
-  // Debug: log sample hit to inspect gtin field when running
-  if (allHits.length > 0) {
-    try {
-      console.log('Alfa sample hit keys:', Object.keys(allHits[0]));
-    } catch (e) {}
-  }
-
-  return allHits.map((product: any) => {
+  // ✅ MAPEAMENTO CORRETO (igual ao Marcon que funciona)
+  return allHits.map((product: any, index: number) => {
     const price = parseFloat(product.pricing?.price) || 0;
-    const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
+    const promotionalPrice = product.pricing?.promotionalPrice 
+      ? parseFloat(product.pricing.promotionalPrice) 
+      : undefined;
     const discount = product.pricing?.discount || 0;
-  
-    return {
+
+    // ✅ DEBUG: Log do primeiro produto mapeado
+    if (index === 0) {
+      console.log("========== DEBUG DO PRIMEIRO PRODUTO (ALFA) ==========");
+      console.log("GTIN original:", product.gtin);
+      console.log("EAN:", product.ean);
+      console.log("Barcode:", product.barcode);
+      console.log("Code:", product.code);
+    }
+
+    const mapped: AlfaProduct = {
       id: product.id || '',
-      gtin:
-        product.gtin ||
-        product.ean ||
-        product.barcode ||
-        product.extraData?.gtin ||
-        product.attributes?.gtin ||
-        product.identifiers?.gtin ||
-        (product.skus && product.skus.length > 0 && (() => {
-          const found = product.skus.find((s: any) => s.gtin || s.ean || s.barcode || s.identifiers?.gtin);
-          return found ? (found.gtin || found.ean || found.barcode || found.identifiers?.gtin) : undefined;
-        })()) ||
-        undefined,
+      gtin: product.gtin || product.ean || product.barcode || product.code || '',
       name: product.name || '',
       description: product.description || '',
       brand: product.brandName || '',
@@ -142,6 +144,14 @@ async function fetchProducts(config: RequestConfig): Promise<AlfaProduct[]> {
       endDate: product.promotions?.endDate,
       image: product.image || '',
     };
+
+    if (index === 0) {
+      console.log("GTIN após mapeamento:", mapped.gtin);
+      console.log("Objeto completo mapeado:", JSON.stringify(mapped, null, 2));
+      console.log("=============================================");
+    }
+
+    return mapped;
   });
 }
 
@@ -165,30 +175,18 @@ serve(async (req) => {
 
     const flatProducts = allProducts.flat();
     
-    // Remove duplicados por ID, preservando gtin quando presente
-    const productMap = new Map<string, any>();
-    for (const p of flatProducts) {
-      const id = p.id || "";
-      if (!id) continue;
-      const existing = productMap.get(id);
-      if (!existing) {
-        productMap.set(id, p);
-        continue;
-      }
-      const merged: any = { ...existing };
-      for (const key of Object.keys(p)) {
-        const val = p[key];
-        if (val !== undefined && val !== null && val !== "") {
-          merged[key] = val;
-        }
-      }
-      merged.gtin = existing.gtin || p.gtin || merged.gtin;
-      productMap.set(id, merged);
-    }
-
-    const uniqueProducts = Array.from(productMap.values());
+    // ✅ REMOVENDO DUPLICADOS PRESERVANDO GTIN
+    const uniqueProducts = Array.from(
+      new Map(flatProducts.map(p => [p.id, p])).values()
+    );
 
     console.log(`Found ${uniqueProducts.length} unique products`);
+    
+    // ✅ DEBUG FINAL: Log antes de retornar
+    if (uniqueProducts.length > 0) {
+      console.log('✅ PRIMEIRO PRODUTO ANTES DO RETORNO:', JSON.stringify(uniqueProducts[0], null, 2));
+      console.log('🏷️ GTIN DO PRIMEIRO PRODUTO:', uniqueProducts[0]?.gtin);
+    }
 
     return new Response(
       JSON.stringify({
