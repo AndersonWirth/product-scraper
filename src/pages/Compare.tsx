@@ -20,13 +20,16 @@ interface Product {
 }
 
 interface ComparedProduct {
+  gtin: string;
   name: string;
-  italo?: { price: number; promotionalPrice?: number };
-  marcon?: { price: number; promotionalPrice?: number };
-  alfa?: { price: number; promotionalPrice?: number };
+  italo?: { price: number };
+  marcon?: { price: number };
+  alfa?: { price: number };
   bestStore: string;
   bestPrice: number;
-  matchScore: number;
+  worstStore: string;
+  worstPrice: number;
+  stores: string[];
 }
 
 export default function Compare() {
@@ -44,7 +47,6 @@ export default function Compare() {
     italoBest: 0,
     marconBest: 0,
     alfaBest: 0,
-    avgMatchScore: 0
   });
 
   const getAllProducts = async (store: string) => {
@@ -135,9 +137,9 @@ export default function Compare() {
         return;
       }
 
-      toast.info("Comparando produtos filtrados...");
+      toast.info("Comparando produtos por GTIN...");
 
-      const { data, error } = await supabase.functions.invoke("compare-products", {
+      const { data, error } = await supabase.functions.invoke("compare-products-gtin", {
         body: {
           italoProducts: filteredItalo,
           marconProducts: filteredMarcon,
@@ -159,13 +161,14 @@ export default function Compare() {
     }
   };
 
-  const getBestPriceColor = (store: string, bestStore: string) => {
-    if (store === bestStore) return "bg-success/10 text-success border-success";
+  const getPriceColor = (store: string, bestStore: string, worstStore: string) => {
+    if (store === bestStore) return "bg-green-100 text-green-800 border-green-500";
+    if (store === worstStore) return "bg-red-100 text-red-800 border-red-500";
     return "bg-muted text-muted-foreground";
   };
 
   const formatPrice = (price?: number) => {
-    if (!price) return "-";
+    if (!price && price !== 0) return "-";
     return `R$ ${price.toFixed(2)}`;
   };
 
@@ -181,9 +184,9 @@ export default function Compare() {
       </div>
 
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Comparador de Produtos</h1>
+        <h1 className="text-4xl font-bold mb-2">Comparador de Produtos por GTIN</h1>
         <p className="text-muted-foreground">
-          Compare preços e encontre os melhores matches entre as 3 filiais
+          Comparação precisa por código de barras (GTIN) entre as 3 filiais
         </p>
       </div>
 
@@ -305,10 +308,10 @@ export default function Compare() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left p-3 font-semibold">Produto</th>
+                    <th className="text-center p-3 font-semibold">GTIN</th>
                     <th className="text-center p-3 font-semibold">Italo</th>
                     <th className="text-center p-3 font-semibold">Marcon</th>
                     <th className="text-center p-3 font-semibold">Alfa</th>
-                    <th className="text-center p-3 font-semibold">Match Score</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -321,45 +324,42 @@ export default function Compare() {
                         </Badge>
                       </td>
                       <td className="p-3 text-center">
-                        <Card className={`p-2 ${getBestPriceColor("italo", product.bestStore)}`}>
-                          <div className="font-semibold">
-                            {formatPrice(product.italo?.promotionalPrice || product.italo?.price)}
-                          </div>
-                          {product.italo?.promotionalPrice && (
-                            <div className="text-xs line-through opacity-60">
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {product.gtin}
+                        </code>
+                      </td>
+                      <td className="p-3 text-center">
+                        {product.italo ? (
+                          <Card className={`p-2 border-2 ${getPriceColor("italo", product.bestStore, product.worstStore)}`}>
+                            <div className="font-semibold">
                               {formatPrice(product.italo.price)}
                             </div>
-                          )}
-                        </Card>
+                          </Card>
+                        ) : (
+                          <div className="text-muted-foreground text-sm">-</div>
+                        )}
                       </td>
                       <td className="p-3 text-center">
-                        <Card className={`p-2 ${getBestPriceColor("marcon", product.bestStore)}`}>
-                          <div className="font-semibold">
-                            {formatPrice(product.marcon?.promotionalPrice || product.marcon?.price)}
-                          </div>
-                          {product.marcon?.promotionalPrice && (
-                            <div className="text-xs line-through opacity-60">
+                        {product.marcon ? (
+                          <Card className={`p-2 border-2 ${getPriceColor("marcon", product.bestStore, product.worstStore)}`}>
+                            <div className="font-semibold">
                               {formatPrice(product.marcon.price)}
                             </div>
-                          )}
-                        </Card>
+                          </Card>
+                        ) : (
+                          <div className="text-muted-foreground text-sm">-</div>
+                        )}
                       </td>
                       <td className="p-3 text-center">
-                        <Card className={`p-2 ${getBestPriceColor("alfa", product.bestStore)}`}>
-                          <div className="font-semibold">
-                            {formatPrice(product.alfa?.promotionalPrice || product.alfa?.price)}
-                          </div>
-                          {product.alfa?.promotionalPrice && (
-                            <div className="text-xs line-through opacity-60">
+                        {product.alfa ? (
+                          <Card className={`p-2 border-2 ${getPriceColor("alfa", product.bestStore, product.worstStore)}`}>
+                            <div className="font-semibold">
                               {formatPrice(product.alfa.price)}
                             </div>
-                          )}
-                        </Card>
-                      </td>
-                      <td className="p-3 text-center">
-                        <Badge variant={product.matchScore >= 0.9 ? "default" : "secondary"}>
-                          {(product.matchScore * 100).toFixed(0)}%
-                        </Badge>
+                          </Card>
+                        ) : (
+                          <div className="text-muted-foreground text-sm">-</div>
+                        )}
                       </td>
                     </tr>
                   ))}
