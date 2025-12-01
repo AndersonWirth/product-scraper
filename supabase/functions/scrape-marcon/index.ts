@@ -14,28 +14,7 @@ interface RequestConfig {
   sortOrder: string;
 }
 
-interface MarconProduct {
-  id: string;
-  name: string;
-  description: string;
-  gtin?: string;
-  brand: string;
-  price: number;
-  promotionalPrice?: number;
-  discount?: number;
-  inPromotion: boolean;
-  salesUnit: string;
-  salesCount: number;
-  stock: number;
-  promotionActive: boolean;
-  promotionName?: string;
-  promotionType?: string;
-  startDate?: string;
-  endDate?: string;
-  image?: string;
-}
-
-async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
+async function fetchProducts(config: RequestConfig): Promise<any[]> {
   const pageSize = Math.min(1000, config.limit || 1000);
   const maxTotal = config.limit || 1000;
 
@@ -101,34 +80,8 @@ async function fetchProducts(config: RequestConfig): Promise<MarconProduct[]> {
 
   console.log(`Total hits collected: ${allHits.length}`);
 
-  return allHits.map((product: any) => {
-    const price = parseFloat(product.pricing?.price) || 0;
-    const promotionalPrice = product.pricing?.promotionalPrice ? parseFloat(product.pricing.promotionalPrice) : undefined;
-    const discount = product.pricing?.discount || 0;
-
-    return {
-      id: product.id || '',
-      gtin: product.gtin || product.ean || product.barcode || product.code || '',
-      name: product.name || '',
-      description: product.description || '',
-      brand: product.brandName || '',
-      price,
-      promotionalPrice,
-      discount: discount > 0 ? discount : undefined,
-      inPromotion: product.pricing?.promotion || false,
-      salesUnit: product.saleUnit || 'UN',
-      salesCount: parseInt(product.salesCount) || 0,
-      stock: parseInt(product.quantity?.inStock) || 0,
-      minQuantity: parseFloat(product.quantity?.min) || undefined,
-      maxQuantity: parseFloat(product.quantity?.max) || undefined,
-      promotionActive: product.promotions?.active || false,
-      promotionName: product.promotions?.promotionName,
-      promotionType: product.promotions?.promotionType,
-      startDate: product.promotions?.startDate,
-      endDate: product.promotions?.endDate,
-      image: product.image || '',
-    };
-  });
+  // Retorna todos os dados da API sem mapeamento
+  return allHits;
 }
 
 serve(async (req) => {
