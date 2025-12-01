@@ -190,30 +190,62 @@ async function processCategory(categoryPath: string): Promise<any[]> {
       const otherPagesProducts = await Promise.all(otherPagePromises);
       const allProducts = [...firstPageProducts, ...otherPagesProducts.flat()];
       
-      // Adiciona cálculo de desconto
-      const productsWithDiscount = allProducts.map(product => {
-        if (product.price && product.special) {
-          const discount = calculateDiscount(product.price, product.special);
-          return { ...product, discount: discount > 0 ? discount : undefined };
+      // Adiciona cálculo de desconto e extrai GTIN da URL da imagem
+      const productsWithData = allProducts.map(product => {
+        let gtin = '';
+        
+        // Extrai GTIN da URL da imagem: product_picture.php?p=7896098909775
+        if (product.thumb) {
+          const match = product.thumb.match(/[?&]p=(\d+)/);
+          if (match && match[1]) {
+            gtin = match[1];
+          }
         }
-        return product;
+        
+        let discount = undefined;
+        if (product.price && product.special) {
+          discount = calculateDiscount(product.price, product.special);
+          discount = discount > 0 ? discount : undefined;
+        }
+        
+        return { 
+          ...product, 
+          gtin,
+          discount 
+        };
       });
       
-      console.log(`✅ ${cleanPath}: ${productsWithDiscount.length} produtos (${lastPage} páginas)`);
-      return productsWithDiscount;
+      console.log(`✅ ${cleanPath}: ${productsWithData.length} produtos (${lastPage} páginas)`);
+      return productsWithData;
     }
     
-    // Apenas 1 página
-    const productsWithDiscount = firstPageProducts.map(product => {
-      if (product.price && product.special) {
-        const discount = calculateDiscount(product.price, product.special);
-        return { ...product, discount: discount > 0 ? discount : undefined };
+    // Apenas 1 página - adiciona cálculo de desconto e extrai GTIN
+    const productsWithData = firstPageProducts.map(product => {
+      let gtin = '';
+      
+      // Extrai GTIN da URL da imagem
+      if (product.thumb) {
+        const match = product.thumb.match(/[?&]p=(\d+)/);
+        if (match && match[1]) {
+          gtin = match[1];
+        }
       }
-      return product;
+      
+      let discount = undefined;
+      if (product.price && product.special) {
+        discount = calculateDiscount(product.price, product.special);
+        discount = discount > 0 ? discount : undefined;
+      }
+      
+      return { 
+        ...product, 
+        gtin,
+        discount 
+      };
     });
     
-    console.log(`✅ ${cleanPath}: ${productsWithDiscount.length} produtos (1 página)`);
-    return productsWithDiscount;
+    console.log(`✅ ${cleanPath}: ${productsWithData.length} produtos (1 página)`);
+    return productsWithData;
   } catch (err) {
     console.error("❌ Erro ao baixar categoria:", cleanPath, "-", err);
     return [];
