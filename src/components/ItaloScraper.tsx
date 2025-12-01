@@ -20,29 +20,20 @@ interface Product {
 const DEPARTMENTS = [
   { value: "all", label: "Todos os Departamentos" },
   { value: "homepage", label: "Promoção/Destaque" },
-  { value: "10950", label: "Confeitaria e Padaria" },
-  { value: "11744", label: "Horta e Jardim" },
   { value: "10735", label: "Açougue" },
-  { value: "10735_10744", label: "Açougue - Carnes" },
-  { value: "10735_10745", label: "Açougue - Aves" },
-  { value: "10735_10746", label: "Açougue - Cortes Especiais" },
-  { value: "10735_10747", label: "Açougue - Suínos" },
-  { value: "10738", label: "Bebidas" },
-  { value: "10738_10756", label: "Bebidas - Refrigerantes" },
-  { value: "10738_10757", label: "Bebidas - Cervejas" },
-  { value: "10738_10758", label: "Bebidas - Vinhos" },
-  { value: "10738_10759", label: "Bebidas - Sucos" },
-  { value: "10738_10760", label: "Bebidas - Águas" },
-  { value: "10742", label: "Higiene e Beleza" },
-  { value: "10742_10788", label: "Higiene e Beleza - Cuidados Pessoais" },
-  { value: "10742_10789", label: "Higiene e Beleza - Cabelos" },
-  { value: "10742_10790", label: "Higiene e Beleza - Cosméticos" },
-  { value: "10743", label: "Hortifruti" },
-  { value: "10743_10795", label: "Hortifruti - Frutas" },
-  { value: "10743_10796", label: "Hortifruti - Verduras e Legumes" },
-  { value: "10741", label: "Limpeza Caseira" },
-  { value: "10741_10778", label: "Limpeza Caseira - Limpeza Geral" },
-  { value: "10741_10779", label: "Limpeza Caseira - Lavanderia" },
+  { value: "11001", label: "Bebidas" },
+  { value: "10950", label: "Confeitaria e Padaria" },
+  { value: "11077", label: "Higiene e Beleza" },
+  { value: "11744", label: "Horta e Jardim" },
+  { value: "10983", label: "Hortifruti" },
+  { value: "11250", label: "Limpeza Caseira" },
+  { value: "10572", label: "Matinais" },
+  { value: "10275", label: "Mercearia Doce" },
+  { value: "10186", label: "Merceria" },
+  { value: "11385", label: "Petshop" },
+  { value: "10865", label: "Refrigerados" },
+  { value: "10624", label: "Saudabilidade" },
+  { value: "11549", label: "Utilidades Domésticas" },
 ];
 
 export const ItaloScraper = () => {
@@ -51,6 +42,7 @@ export const ItaloScraper = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [promotionOnly, setPromotionOnly] = useState(false);
   const { toast } = useToast();
 
   const handleScrape = async () => {
@@ -65,7 +57,7 @@ export const ItaloScraper = () => {
       // Busca em múltiplos batches até não haver mais categorias (cursor === null)
       while (cursor !== null) {
         const { data, error } = await supabase.functions.invoke("scrape-italo", {
-          body: { department: selectedDepartment, cursor },
+          body: { department: selectedDepartment, cursor, promotionOnly },
         });
 
         if (error) throw error;
@@ -137,30 +129,47 @@ export const ItaloScraper = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-          <SelectTrigger className="w-full sm:w-[300px]">
-            <SelectValue placeholder="Selecione um departamento" />
-          </SelectTrigger>
-          <SelectContent>
-            {DEPARTMENTS.map((dept) => (
-              <SelectItem key={dept.value} value={dept.value}>
-                {dept.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um departamento" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEPARTMENTS.map((dept) => (
+                  <SelectItem key={dept.value} value={dept.value}>
+                    {dept.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <Button onClick={handleScrape} disabled={loading} className="w-full sm:w-auto">
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Buscando...
-            </>
-          ) : (
-            "Iniciar Scraping"
-          )}
-        </Button>
+          <Button onClick={handleScrape} disabled={loading} className="w-full sm:w-auto">
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Buscando...
+              </>
+            ) : (
+              "Iniciar Scraping"
+            )}
+          </Button>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="promotionOnly"
+            checked={promotionOnly}
+            onChange={(e) => setPromotionOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-input"
+          />
+          <label htmlFor="promotionOnly" className="text-sm font-medium cursor-pointer">
+            Apenas Promoções
+          </label>
+        </div>
       </div>
 
       {products.length > 0 && (
