@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.scrape-alfa]
 verify_jwt = false
+
+[functions.compare-products-gtin]
+verify_jwt = false
+
+[functions.compare-products-advanced]
+verify_jwt = false
