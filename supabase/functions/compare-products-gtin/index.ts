@@ -69,13 +69,19 @@ serve(async (req) => {
   }
 
   try {
-    const { italoProducts, marconProducts, alfaProducts } = await req.json();
+    const { italoProducts = [], marconProducts = [], alfaProducts = [] } = await req.json();
 
     console.log(
       `Comparing by GTIN: Italo(${italoProducts.length}), Marcon(${marconProducts.length}), Alfa(${alfaProducts.length})`
     );
 
     // Cria índices por GTIN para busca eficiente
+    const italoByGtin = new Map<string, ProductWithGtin>();
+    italoProducts.forEach((p: ProductWithGtin) => {
+      const gtin = normalizeGtin(p.gtin);
+      if (gtin) italoByGtin.set(gtin, p);
+    });
+
     const marconByGtin = new Map<string, ProductWithGtin>();
     marconProducts.forEach((p: ProductWithGtin) => {
       const gtin = normalizeGtin(p.gtin);
@@ -88,23 +94,27 @@ serve(async (req) => {
       if (gtin) alfaByGtin.set(gtin, p);
     });
 
+    // Coleta todos os GTINs únicos de todas as lojas
+    const allGtins = new Set<string>();
+    italoByGtin.forEach((_, gtin) => allGtins.add(gtin));
+    marconByGtin.forEach((_, gtin) => allGtins.add(gtin));
+    alfaByGtin.forEach((_, gtin) => allGtins.add(gtin));
+
     const comparedProducts: ComparedProduct[] = [];
-    const processedGtins = new Set<string>();
 
-    // Itera por produtos do Italo e busca matches exatos por GTIN
-    for (const italoProduct of italoProducts) {
-      const gtin = normalizeGtin(italoProduct.gtin);
-      
-      if (!gtin || processedGtins.has(gtin)) continue;
-      processedGtins.add(gtin);
-
+    // Processa cada GTIN único
+    for (const gtin of allGtins) {
+      const italoProduct = italoByGtin.get(gtin);
       const marconProduct = marconByGtin.get(gtin);
       const alfaProduct = alfaByGtin.get(gtin);
 
-      // Só compara se houver match em pelo menos uma outra loja
-      if (!marconProduct && !alfaProduct) continue;
+      // Conta quantas lojas tem esse produto
+      const storesWithProduct = [italoProduct, marconProduct, alfaProduct].filter(Boolean);
+      
+      // Só compara se houver em pelo menos 2 lojas
+      if (storesWithProduct.length < 2) continue;
 
-      const italoPrice = extractPrice(italoProduct);
+      const italoPrice = italoProduct ? extractPrice(italoProduct) : null;
       const marconPrice = marconProduct ? extractPrice(marconProduct) : null;
       const alfaPrice = alfaProduct ? extractPrice(alfaProduct) : null;
 
@@ -114,16 +124,19 @@ serve(async (req) => {
       if (marconPrice) prices.push({ store: 'marcon', price: marconPrice });
       if (alfaPrice) prices.push({ store: 'alfa', price: alfaPrice });
 
-      if (prices.length === 0) continue;
+      if (prices.length < 2) continue;
 
       // Encontra melhor e pior preço
       const sortedPrices = [...prices].sort((a, b) => a.price - b.price);
       const bestPrice = sortedPrices[0];
       const worstPrice = sortedPrices[sortedPrices.length - 1];
 
+      // Usa o nome do primeiro produto encontrado
+      const productName = italoProduct?.name || marconProduct?.name || alfaProduct?.name || '';
+
       comparedProducts.push({
         gtin,
-        name: italoProduct.name,
+        name: productName,
         italo: italoPrice ? { price: italoPrice } : undefined,
         marcon: marconPrice ? { price: marconPrice } : undefined,
         alfa: alfaPrice ? { price: alfaPrice } : undefined,
@@ -135,6 +148,9 @@ serve(async (req) => {
       });
     }
 
+    // Ordena por nome do produto
+    comparedProducts.sort((a, b) => a.name.localeCompare(b.name));
+
     const stats = {
       totalMatches: comparedProducts.length,
       italoBest: comparedProducts.filter(p => p.bestStore === 'italo').length,
@@ -142,7 +158,7 @@ serve(async (req) => {
       alfaBest: comparedProducts.filter(p => p.bestStore === 'alfa').length,
     };
 
-    console.log(`GTIN comparison complete: ${stats.totalMatches} exact matches found`);
+    console.log(`GTIN comparison complete: ${stats.totalMatches} products found in 2+ stores`);
 
     return new Response(
       JSON.stringify({
