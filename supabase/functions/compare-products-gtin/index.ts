@@ -38,6 +38,56 @@ interface UnmatchedProduct {
   store: string;
 }
 
+// Sinônimos de produtos comuns em supermercados
+const SYNONYMS: Record<string, string[]> = {
+  'chiclete': ['goma', 'goma de mascar', 'chicle'],
+  'goma': ['chiclete', 'goma de mascar', 'chicle'],
+  'refrigerante': ['refri', 'bebida gaseificada'],
+  'bolacha': ['biscoito'],
+  'biscoito': ['bolacha'],
+  'achocolatado': ['chocolate em po', 'nescau', 'toddy'],
+  'leite condensado': ['leite mococa', 'mococa'],
+  'margarina': ['manteiga vegetal'],
+  'macarrao': ['massa', 'espaguete', 'talharim'],
+  'massa': ['macarrao'],
+  'sabao': ['detergente', 'lava loucas'],
+  'amaciante': ['amaciante de roupas'],
+  'desodorante': ['antitranspirante', 'deo'],
+  'shampoo': ['xampu'],
+  'condicionador': ['creme rinse'],
+  'papel higienico': ['papel sanitario'],
+  'fralda': ['fralda descartavel'],
+  'cerveja': ['cerva', 'breja'],
+  'cafe': ['cafe em po', 'cafe torrado'],
+  'arroz': ['arroz branco', 'arroz tipo 1'],
+  'feijao': ['feijao carioca', 'feijao preto'],
+  'oleo': ['oleo de soja', 'oleo vegetal'],
+  'acucar': ['acucar refinado', 'acucar cristal'],
+  'sal': ['sal refinado', 'sal marinho'],
+  'farinha': ['farinha de trigo'],
+  'leite': ['leite integral', 'leite uht'],
+  'iogurte': ['yogurt', 'yogurte'],
+  'queijo': ['queijo mussarela', 'mucarela'],
+  'presunto': ['apresuntado'],
+  'mortadela': ['embutido'],
+  'linguica': ['salsicha'],
+  'salsicha': ['linguica'],
+  'frango': ['frango congelado', 'ave'],
+  'carne': ['carne bovina', 'carne moida'],
+  'peixe': ['filé de peixe'],
+  'batata': ['batatinha', 'batata inglesa'],
+  'tomate': ['tomate maduro'],
+  'cebola': ['cebola branca'],
+  'alho': ['alho nacional'],
+  'banana': ['banana nanica', 'banana prata'],
+  'maca': ['maca fuji', 'maca gala'],
+  'laranja': ['laranja pera'],
+  'limao': ['limao tahiti'],
+  'agua': ['agua mineral'],
+  'suco': ['suco de fruta', 'nectar'],
+  'energetico': ['bebida energetica', 'energy drink'],
+};
+
 function extractPrice(product: ProductWithGtin): number | null {
   if (product.pricing?.promotionalPrice) return product.pricing.promotionalPrice;
   if (product.pricing?.price) return product.pricing.price;
@@ -61,12 +111,11 @@ function normalizeGtin(gtin: string | undefined): string {
   return g;
 }
 
-// Extract quantity/volume from product name (e.g., "200ml", "1.5l", "500g", "1kg")
+// Extract ALL quantity/volume patterns from product name
 function extractQuantity(name: string): { value: number; unit: string } | null {
   if (!name) return null;
   const normalized = name.toLowerCase().replace(',', '.');
   
-  // Match patterns like: 200ml, 1.5l, 500g, 1kg, 2lt, 350 ml, 1,5 l
   const patterns = [
     /(\d+(?:\.\d+)?)\s*(ml|l|lt|litro|litros)/i,
     /(\d+(?:\.\d+)?)\s*(kg|g|gr|gramas)/i,
@@ -79,13 +128,12 @@ function extractQuantity(name: string): { value: number; unit: string } | null {
       let value = parseFloat(match[1]);
       let unit = match[2].toLowerCase();
       
-      // Normalize units
       if (unit === 'l' || unit === 'lt' || unit === 'litro' || unit === 'litros') {
-        value = value * 1000; // Convert to ml
+        value = value * 1000;
         unit = 'ml';
       }
       if (unit === 'kg') {
-        value = value * 1000; // Convert to g
+        value = value * 1000;
         unit = 'g';
       }
       if (unit === 'gr' || unit === 'gramas') {
@@ -101,16 +149,11 @@ function extractQuantity(name: string): { value: number; unit: string } | null {
   return null;
 }
 
-// Check if quantities are compatible (same unit and similar value)
 function quantitiesMatch(q1: { value: number; unit: string } | null, q2: { value: number; unit: string } | null): boolean {
-  // If neither has quantity, they can match
   if (!q1 && !q2) return true;
-  // If only one has quantity, they don't match
   if (!q1 || !q2) return false;
-  // Must be same unit
   if (q1.unit !== q2.unit) return false;
-  // Allow 10% tolerance for similar quantities
-  const tolerance = Math.max(q1.value, q2.value) * 0.1;
+  const tolerance = Math.max(q1.value, q2.value) * 0.15; // 15% tolerance
   return Math.abs(q1.value - q2.value) <= tolerance;
 }
 
@@ -124,6 +167,28 @@ function normalizeDescription(str: string): string {
     .replace(/\s+/g, " ").trim();
 }
 
+// Expand tokens with synonyms
+function getTokensWithSynonyms(str: string): Set<string> {
+  const base = normalizeDescription(str).split(' ').filter(t => t.length > 2);
+  const expanded = new Set(base);
+  
+  for (const token of base) {
+    // Check if this token has synonyms
+    for (const [key, synonyms] of Object.entries(SYNONYMS)) {
+      if (token === key || synonyms.some(s => s.includes(token) || token.includes(s))) {
+        expanded.add(key);
+        synonyms.forEach(s => {
+          s.split(' ').forEach(part => {
+            if (part.length > 2) expanded.add(part);
+          });
+        });
+      }
+    }
+  }
+  
+  return expanded;
+}
+
 function getTokens(str: string): string[] {
   return normalizeDescription(str).split(' ').filter(t => t.length > 2);
 }
@@ -131,7 +196,7 @@ function getTokens(str: string): string[] {
 function buildTokenIndex(products: ProductWithGtin[]): Map<string, Set<number>> {
   const index = new Map<string, Set<number>>();
   for (let i = 0; i < products.length; i++) {
-    const tokens = getTokens(products[i].name);
+    const tokens = getTokensWithSynonyms(products[i].name);
     for (const t of tokens) {
       if (!index.has(t)) index.set(t, new Set());
       index.get(t)!.add(i);
@@ -140,8 +205,8 @@ function buildTokenIndex(products: ProductWithGtin[]): Map<string, Set<number>> 
   return index;
 }
 
-function findCandidates(product: ProductWithGtin, tokenIndex: Map<string, Set<number>>, maxCandidates = 50): number[] {
-  const tokens = getTokens(product.name);
+function findCandidates(product: ProductWithGtin, tokenIndex: Map<string, Set<number>>, maxCandidates = 100): number[] {
+  const tokens = getTokensWithSynonyms(product.name);
   const candidateCounts = new Map<number, number>();
   
   for (const t of tokens) {
@@ -160,23 +225,26 @@ function findCandidates(product: ProductWithGtin, tokenIndex: Map<string, Set<nu
     .map(([idx]) => idx);
 }
 
+// Improved similarity with synonym awareness
 function calculateSimilarity(str1: string, str2: string): number {
-  const s1 = normalizeDescription(str1);
-  const s2 = normalizeDescription(str2);
-  if (s1 === s2) return 1;
-  if (!s1.length || !s2.length) return 0;
-  const tokens1 = s1.split(' ').filter(t => t.length > 1);
-  const tokens2 = s2.split(' ').filter(t => t.length > 1);
-  if (!tokens1.length || !tokens2.length) return 0;
-  const common = tokens1.filter(t => tokens2.includes(t));
-  return (common.length * 2) / (tokens1.length + tokens2.length);
+  const tokens1 = getTokensWithSynonyms(str1);
+  const tokens2 = getTokensWithSynonyms(str2);
+  
+  if (!tokens1.size || !tokens2.size) return 0;
+  
+  let matches = 0;
+  for (const t1 of tokens1) {
+    if (tokens2.has(t1)) matches++;
+  }
+  
+  return (matches * 2) / (tokens1.size + tokens2.size);
 }
 
 function findBestMatchOptimized(
   product: ProductWithGtin, 
   candidates: number[], 
   targetProducts: ProductWithGtin[], 
-  threshold = 0.55
+  threshold = 0.50
 ): { match: ProductWithGtin; score: number; idx: number } | null {
   let best: ProductWithGtin | null = null;
   let bestScore = 0;
@@ -187,10 +255,9 @@ function findBestMatchOptimized(
   for (const idx of candidates) {
     const c = targetProducts[idx];
     
-    // Check quantity compatibility FIRST
     const candidateQty = extractQuantity(c.name);
     if (!quantitiesMatch(productQty, candidateQty)) {
-      continue; // Skip if quantities don't match
+      continue;
     }
     
     const score = calculateSimilarity(product.name, c.name);
@@ -204,83 +271,150 @@ function findBestMatchOptimized(
   return best ? { match: best, score: bestScore, idx: bestIdx } : null;
 }
 
-// Gemini API for semantic matching
-async function semanticMatch(
-  products1: ProductWithGtin[], 
-  products2: ProductWithGtin[],
+// Semantic matching using Lovable AI
+async function semanticMatchBatch(
+  products1: { idx: number; name: string }[], 
+  products2: { idx: number; name: string }[],
   apiKey: string
-): Promise<Map<number, { idx: number; score: number }>> {
-  const matches = new Map<number, { idx: number; score: number }>();
+): Promise<{ idx1: number; idx2: number; score: number }[]> {
+  const matches: { idx1: number; idx2: number; score: number }[] = [];
   
-  // Batch products for API calls (max 20 at a time to avoid timeout)
-  const batchSize = 20;
-  const batches = Math.ceil(Math.min(products1.length, 100) / batchSize); // Limit to 100 products for semantic
+  if (!products1.length || !products2.length) return matches;
   
-  for (let b = 0; b < batches; b++) {
-    const start = b * batchSize;
-    const end = Math.min(start + batchSize, products1.length, 100);
-    const batch1 = products1.slice(start, end);
+  const prompt = `Você é um especialista em comparação de produtos de supermercado. Compare os produtos da Lista 1 com os da Lista 2 e identifique quais são EXATAMENTE o mesmo produto (mesma marca, mesmo sabor, mesma gramagem/volume aproximado).
+
+IMPORTANTE: 
+- "Chiclete" e "Goma" são sinônimos
+- "Bolacha" e "Biscoito" são sinônimos  
+- Considere variações de grafia (tutti-frutti = tutti fruti)
+- Produtos com gramagem muito diferente NÃO são o mesmo (ex: 200ml ≠ 65ml)
+- Foque na marca e tipo do produto
+
+Lista 1:
+${products1.map(p => `[${p.idx}] ${p.name}`).join('\n')}
+
+Lista 2:
+${products2.map(p => `[${p.idx}] ${p.name}`).join('\n')}
+
+Responda APENAS com um JSON válido no formato:
+{"matches":[{"idx1":0,"idx2":0,"score":0.95}]}
+
+Onde idx1 é o índice da Lista 1, idx2 é o índice da Lista 2, e score é a confiança (0.0 a 1.0).
+Inclua APENAS matches com score >= 0.85.
+Se não houver matches, retorne: {"matches":[]}`;
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: 'Você retorna apenas JSON válido sem explicações.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 4096
+      }),
+    });
     
-    const prompt = `Compare estes produtos do primeiro mercado com os do segundo mercado e retorne apenas os que são EXATAMENTE o mesmo produto (mesma marca, mesmo tamanho/gramagem, mesmo tipo). Responda APENAS em JSON.
-
-Produtos Mercado 1:
-${batch1.map((p, i) => `${start + i}: ${p.name}`).join('\n')}
-
-Produtos Mercado 2:
-${products2.slice(0, 100).map((p, i) => `${i}: ${p.name}`).join('\n')}
-
-Retorne JSON: {"matches": [{"idx1": number, "idx2": number, "confidence": 0.0-1.0}]}
-Só inclua matches com confidence >= 0.85. Se não houver matches, retorne {"matches": []}`;
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
-          })
-        }
-      );
-      
-      if (!response.ok) {
-        console.error('Gemini API error:', response.status);
-        continue;
-      }
-      
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
-      // Extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.matches && Array.isArray(parsed.matches)) {
-          for (const m of parsed.matches) {
-            if (m.idx1 !== undefined && m.idx2 !== undefined && m.confidence >= 0.85) {
-              matches.set(m.idx1, { idx: m.idx2, score: m.confidence });
-            }
+    if (!response.ok) {
+      console.error('Lovable AI error:', response.status, await response.text());
+      return matches;
+    }
+    
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    
+    // Extract JSON
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.matches && Array.isArray(parsed.matches)) {
+        for (const m of parsed.matches) {
+          if (m.idx1 !== undefined && m.idx2 !== undefined && m.score >= 0.85) {
+            matches.push({ idx1: m.idx1, idx2: m.idx2, score: m.score });
           }
         }
       }
-    } catch (e) {
-      console.error('Semantic match error:', e);
     }
+  } catch (e) {
+    console.error('Semantic match error:', e);
   }
   
   return matches;
+}
+
+// Process semantic matching in batches
+async function semanticMatchAll(
+  unmatchedProducts: ProductWithGtin[],
+  targetProducts: ProductWithGtin[],
+  apiKey: string,
+  batchSize = 30
+): Promise<Map<number, { idx: number; score: number }>> {
+  const results = new Map<number, { idx: number; score: number }>();
+  
+  const totalBatches = Math.ceil(unmatchedProducts.length / batchSize);
+  console.log(`Semantic matching: ${unmatchedProducts.length} products in ${totalBatches} batches`);
+  
+  for (let i = 0; i < unmatchedProducts.length; i += batchSize) {
+    const batch1 = unmatchedProducts.slice(i, i + batchSize).map((p, idx) => ({
+      idx: i + idx,
+      name: p.name
+    }));
+    
+    // For each batch, compare against up to 100 target products at a time
+    for (let j = 0; j < targetProducts.length; j += 100) {
+      const batch2 = targetProducts.slice(j, j + 100).map((p, idx) => ({
+        idx: j + idx,
+        name: p.name
+      }));
+      
+      const batchResults = await semanticMatchBatch(batch1, batch2, apiKey);
+      
+      for (const m of batchResults) {
+        const actualIdx1 = batch1[m.idx1]?.idx;
+        const actualIdx2 = batch2[m.idx2]?.idx;
+        
+        if (actualIdx1 !== undefined && actualIdx2 !== undefined) {
+          // Only keep the best match for each product
+          const existing = results.get(actualIdx1);
+          if (!existing || m.score > existing.score) {
+            results.set(actualIdx1, { idx: actualIdx2, score: m.score });
+          }
+        }
+      }
+    }
+    
+    // Small delay between batches to avoid rate limits
+    if (i + batchSize < unmatchedProducts.length) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+  
+  return results;
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const { italoProducts = [], marconProducts = [], alfaProducts = [], useSemanticAI = false } = await req.json();
-    console.log(`Comparing: Italo(${italoProducts.length}), Marcon(${marconProducts.length}), Alfa(${alfaProducts.length}), Semantic: ${useSemanticAI}\n`);
+    const { 
+      italoProducts = [], 
+      marconProducts = [], 
+      alfaProducts = [], 
+      useSemanticAI = false,
+      batchIndex = 0,
+      batchSize = 3000
+    } = await req.json();
+    
+    const totalProducts = italoProducts.length + marconProducts.length + alfaProducts.length;
+    console.log(`Batch ${batchIndex}: Italo(${italoProducts.length}), Marcon(${marconProducts.length}), Alfa(${alfaProducts.length}), Total: ${totalProducts}, Semantic: ${useSemanticAI}`);
 
-    const geminiKey = Deno.env.get('GEMINI_API_KEY');
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY');
 
     // Index by GTIN
     const italoByGtin = new Map<string, ProductWithGtin>();
@@ -349,9 +483,9 @@ serve(async (req) => {
       matchedGtins.add(gtin);
     }
     
-    console.log(`GTIN matches: ${comparedProducts.length}\n`);
+    console.log(`GTIN matches: ${comparedProducts.length}`);
 
-    // Stage 2: Description matching with quantity validation
+    // Stage 2: Description matching with synonyms and quantity validation
     const unmatchedItalo = [...italoByGtin.entries()]
       .filter(([g]) => !matchedGtins.has(g))
       .map(([_, p]) => p)
@@ -367,19 +501,18 @@ serve(async (req) => {
       .map(([_, p]) => p)
       .concat(alfaNoGtin);
 
-    console.log(`Unmatched: Italo(${unmatchedItalo.length}), Marcon(${unmatchedMarcon.length}), Alfa(${unmatchedAlfa.length})\n`);
+    console.log(`Unmatched for desc: Italo(${unmatchedItalo.length}), Marcon(${unmatchedMarcon.length}), Alfa(${unmatchedAlfa.length})`);
 
-    // Build token indices
-    const italoIndex = buildTokenIndex(unmatchedItalo);
+    // Build token indices with synonyms
     const marconIndex = buildTokenIndex(unmatchedMarcon);
     const alfaIndex = buildTokenIndex(unmatchedAlfa);
+    const italoIndex = buildTokenIndex(unmatchedItalo);
     
     let descMatches = 0;
-    const processedItalo = new Set<number>();
     const processedMarcon = new Set<number>();
     const processedAlfa = new Set<number>();
+    const processedItalo = new Set<number>();
 
-    // Match all combinations
     // Marcon vs Alfa
     for (let mi = 0; mi < unmatchedMarcon.length; mi++) {
       if (processedMarcon.has(mi)) continue;
@@ -390,7 +523,6 @@ serve(async (req) => {
       
       if (!am || processedAlfa.has(am.idx)) continue;
       
-      // Also try to find Italo match
       const italoCandidates = findCandidates(mp, italoIndex);
       const im = findBestMatchOptimized(mp, italoCandidates, unmatchedItalo);
       
@@ -429,63 +561,95 @@ serve(async (req) => {
       descMatches++;
     }
 
-    // Italo vs remaining Marcon
+    // Italo vs remaining
     for (let ii = 0; ii < unmatchedItalo.length; ii++) {
       if (processedItalo.has(ii)) continue;
       
       const ip = unmatchedItalo[ii];
-      const marconCandidates = findCandidates(ip, marconIndex);
-      const mm = findBestMatchOptimized(ip, marconCandidates, unmatchedMarcon.filter((_, idx) => !processedMarcon.has(idx)));
       
-      if (!mm) continue;
+      // Try Marcon first
+      const marconCandidates = findCandidates(ip, marconIndex);
+      const filteredMarconCandidates = marconCandidates.filter(idx => !processedMarcon.has(idx));
+      const mm = findBestMatchOptimized(ip, filteredMarconCandidates, unmatchedMarcon);
+      
+      // Try Alfa
+      const alfaCandidates = findCandidates(ip, alfaIndex);
+      const filteredAlfaCandidates = alfaCandidates.filter(idx => !processedAlfa.has(idx));
+      const am = findBestMatchOptimized(ip, filteredAlfaCandidates, unmatchedAlfa);
+      
+      if (!mm && !am) continue;
       
       const prices: { store: string; price: number }[] = [];
       const iprice = extractPrice(ip);
-      const mprice = extractPrice(mm.match);
+      const mprice = mm ? extractPrice(mm.match) : null;
+      const aprice = am ? extractPrice(am.match) : null;
       
       if (iprice) prices.push({ store: 'italo', price: iprice });
       if (mprice) prices.push({ store: 'marcon', price: mprice });
+      if (aprice) prices.push({ store: 'alfa', price: aprice });
       
       if (prices.length < 2) continue;
       
       const sorted = [...prices].sort((a, b) => a.price - b.price);
-      const gtin = normalizeGtin(ip.gtin) || normalizeGtin(mm.match.gtin) || `DESC-${descMatches}`;
+      const gtin = normalizeGtin(ip.gtin) || (mm ? normalizeGtin(mm.match.gtin) : '') || (am ? normalizeGtin(am.match.gtin) : '') || `DESC-${descMatches}`;
       
       comparedProducts.push({
         gtin,
         name: ip.name,
         italo: iprice ? { price: iprice } : undefined,
         marcon: mprice ? { price: mprice } : undefined,
-        alfa: undefined,
+        alfa: aprice ? { price: aprice } : undefined,
         bestStore: sorted[0].store,
         bestPrice: sorted[0].price,
         worstStore: sorted[sorted.length - 1].store,
         worstPrice: sorted[sorted.length - 1].price,
         stores: prices.map(p => p.store),
         matchType: 'description',
-        matchScore: mm.score
+        matchScore: Math.max(mm?.score || 0, am?.score || 0)
       });
       
       processedItalo.add(ii);
+      if (mm) processedMarcon.add(mm.idx);
+      if (am) processedAlfa.add(am.idx);
       descMatches++;
     }
     
-    console.log(`Description matches: ${descMatches}\n`);
+    console.log(`Description matches: ${descMatches}`);
 
-    // Stage 3: Semantic AI matching (if enabled and API key available)
+    // Stage 3: Semantic AI matching
     let semanticMatches = 0;
-    if (useSemanticAI && geminiKey) {
-      console.log('Starting semantic matching with Gemini...\n');
+    if (useSemanticAI && lovableKey) {
+      console.log('Starting semantic matching with Lovable AI...');
       
       const remainingMarcon = unmatchedMarcon.filter((_, i) => !processedMarcon.has(i));
       const remainingAlfa = unmatchedAlfa.filter((_, i) => !processedAlfa.has(i));
+      const remainingItalo = unmatchedItalo.filter((_, i) => !processedItalo.has(i));
       
+      console.log(`Remaining for semantic: Marcon(${remainingMarcon.length}), Alfa(${remainingAlfa.length}), Italo(${remainingItalo.length})`);
+      
+      // Marcon vs Alfa semantic
       if (remainingMarcon.length > 0 && remainingAlfa.length > 0) {
-        const semanticResults = await semanticMatch(remainingMarcon, remainingAlfa, geminiKey);
+        // Limit semantic processing to avoid timeout
+        const marconForSemantic = remainingMarcon.slice(0, 500);
+        const alfaForSemantic = remainingAlfa.slice(0, 500);
         
-        for (const [idx1, { idx: idx2, score }] of semanticResults) {
-          const mp = remainingMarcon[idx1];
-          const ap = remainingAlfa[idx2];
+        const semanticResults = await semanticMatchAll(marconForSemantic, alfaForSemantic, lovableKey, 25);
+        
+        const semanticProcessedMarcon = new Set<number>();
+        const semanticProcessedAlfa = new Set<number>();
+        
+        for (const [marconIdx, { idx: alfaIdx, score }] of semanticResults) {
+          if (semanticProcessedMarcon.has(marconIdx) || semanticProcessedAlfa.has(alfaIdx)) continue;
+          
+          const mp = marconForSemantic[marconIdx];
+          const ap = alfaForSemantic[alfaIdx];
+          
+          if (!mp || !ap) continue;
+          
+          // Validate quantity match even for semantic
+          const mqty = extractQuantity(mp.name);
+          const aqty = extractQuantity(ap.name);
+          if (!quantitiesMatch(mqty, aqty)) continue;
           
           const prices: { store: string; price: number }[] = [];
           const mprice = extractPrice(mp);
@@ -502,7 +666,6 @@ serve(async (req) => {
           comparedProducts.push({
             gtin,
             name: mp.name,
-            italo: undefined,
             marcon: mprice ? { price: mprice } : undefined,
             alfa: aprice ? { price: aprice } : undefined,
             bestStore: sorted[0].store,
@@ -514,31 +677,21 @@ serve(async (req) => {
             matchScore: score
           });
           
+          semanticProcessedMarcon.add(marconIdx);
+          semanticProcessedAlfa.add(alfaIdx);
           semanticMatches++;
         }
       }
       
-      console.log(`Semantic matches: ${semanticMatches}\n`);
+      console.log(`Semantic matches: ${semanticMatches}`);
     }
 
-    // Collect unmatched products
+    // Collect all unmatched products
     const unmatchedProducts: UnmatchedProduct[] = [];
     
-    for (let i = 0; i < unmatchedItalo.length; i++) {
-      if (!processedItalo.has(i)) {
-        const p = unmatchedItalo[i];
-        unmatchedProducts.push({
-          gtin: normalizeGtin(p.gtin) || undefined,
-          name: p.name,
-          price: extractPrice(p),
-          store: 'italo'
-        });
-      }
-    }
-    
-    for (let i = 0; i < unmatchedMarcon.length; i++) {
+    // Marcon unmatched
+    unmatchedMarcon.forEach((p, i) => {
       if (!processedMarcon.has(i)) {
-        const p = unmatchedMarcon[i];
         unmatchedProducts.push({
           gtin: normalizeGtin(p.gtin) || undefined,
           name: p.name,
@@ -546,11 +699,11 @@ serve(async (req) => {
           store: 'marcon'
         });
       }
-    }
+    });
     
-    for (let i = 0; i < unmatchedAlfa.length; i++) {
+    // Alfa unmatched
+    unmatchedAlfa.forEach((p, i) => {
       if (!processedAlfa.has(i)) {
-        const p = unmatchedAlfa[i];
         unmatchedProducts.push({
           gtin: normalizeGtin(p.gtin) || undefined,
           name: p.name,
@@ -558,40 +711,42 @@ serve(async (req) => {
           store: 'alfa'
         });
       }
-    }
+    });
     
-    comparedProducts.sort((a, b) => a.name.localeCompare(b.name));
-    
-    const gtinCount = comparedProducts.filter(p => p.matchType === 'gtin').length;
-    const descCount = comparedProducts.filter(p => p.matchType === 'description').length;
-    const semCount = comparedProducts.filter(p => p.matchType === 'semantic').length;
-    
+    // Italo unmatched
+    unmatchedItalo.forEach((p, i) => {
+      if (!processedItalo.has(i)) {
+        unmatchedProducts.push({
+          gtin: normalizeGtin(p.gtin) || undefined,
+          name: p.name,
+          price: extractPrice(p),
+          store: 'italo'
+        });
+      }
+    });
+
     const stats = {
       totalMatches: comparedProducts.length,
-      gtinMatches: gtinCount,
-      descriptionMatches: descCount,
-      semanticMatches: semCount,
+      gtinMatches: comparedProducts.filter(p => p.matchType === 'gtin').length,
+      descriptionMatches: comparedProducts.filter(p => p.matchType === 'description').length,
+      semanticMatches: comparedProducts.filter(p => p.matchType === 'semantic').length,
       unmatchedCount: unmatchedProducts.length,
       italoBest: comparedProducts.filter(p => p.bestStore === 'italo').length,
       marconBest: comparedProducts.filter(p => p.bestStore === 'marcon').length,
       alfaBest: comparedProducts.filter(p => p.bestStore === 'alfa').length
     };
-    
-    console.log(`Complete: ${stats.totalMatches} matches (${stats.gtinMatches} GTIN + ${stats.descriptionMatches} desc + ${stats.semanticMatches} sem), ${stats.unmatchedCount} unmatched\n`);
-    
-    return new Response(JSON.stringify({ 
-      success: true, 
-      comparedProducts, 
-      unmatchedProducts,
-      stats 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+
+    console.log(`Final stats: ${JSON.stringify(stats)}`);
+
+    return new Response(JSON.stringify({ comparedProducts, unmatchedProducts, stats }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error('Error:', error);
-    return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }), {
+  } catch (error: unknown) {
+    console.error('Compare error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
