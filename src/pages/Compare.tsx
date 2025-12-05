@@ -23,6 +23,7 @@ export default function Compare() {
   const [loadingMarcon, setLoadingMarcon] = useState(false);
   const [loadingAlfa, setLoadingAlfa] = useState(false);
   const [comparing, setComparing] = useState(false);
+  const [compareProgress, setCompareProgress] = useState(0);
   const [italoProgress, setItaloProgress] = useState(0);
   const [selectedStores, setSelectedStores] = useState({ italo: true, marcon: true, alfa: true });
   const [useSemanticAI, setUseSemanticAI] = useState(false);
@@ -72,21 +73,95 @@ export default function Compare() {
     const selected = Object.entries(selectedStores).filter(([k, v]) => v && allProducts[k as keyof typeof allProducts].length > 0).length;
     if (selected < 2) { toast.error("Selecione pelo menos 2 lojas!"); return; }
     setComparing(true);
+    setCompareProgress(0);
+    
     try {
-      const { data, error } = await supabase.functions.invoke("compare-products-gtin", { 
-        body: { 
-          italoProducts: selectedStores.italo ? allProducts.italo : [], 
-          marconProducts: selectedStores.marcon ? allProducts.marcon : [], 
-          alfaProducts: selectedStores.alfa ? allProducts.alfa : [],
-          useSemanticAI
-        } 
-      });
-      if (error) throw error;
-      setComparedProducts(data.comparedProducts);
-      setUnmatchedProducts(data.unmatchedProducts || []);
-      setStats(data.stats);
-      toast.success(`${data.stats.totalMatches} produtos comparados! (${data.stats.unmatchedCount} não comparados)`);
-    } catch (e) { console.error(e); toast.error("Erro ao comparar"); } finally { setComparing(false); }
+      const italo = selectedStores.italo ? allProducts.italo : [];
+      const marcon = selectedStores.marcon ? allProducts.marcon : [];
+      const alfa = selectedStores.alfa ? allProducts.alfa : [];
+      
+      // Processar em lotes para evitar WORKER_LIMIT
+      const BATCH_SIZE = 2500;
+      const allCompared: ComparedProduct[] = [];
+      const allUnmatched: UnmatchedProduct[] = [];
+      let totalStats = { totalMatches: 0, gtinMatches: 0, descriptionMatches: 0, semanticMatches: 0, unmatchedCount: 0, italoBest: 0, marconBest: 0, alfaBest: 0 };
+      
+      // Calcular total de lotes
+      const marconBatches = Math.ceil(marcon.length / BATCH_SIZE) || 1;
+      const alfaBatches = Math.ceil(alfa.length / BATCH_SIZE) || 1;
+      const totalBatches = marconBatches * alfaBatches;
+      let currentBatch = 0;
+      
+      // Se Italo está incluído, processar separadamente depois
+      const hasItalo = italo.length > 0;
+      
+      // Processar Marcon vs Alfa em lotes
+      for (let mi = 0; mi < marcon.length; mi += BATCH_SIZE) {
+        const marconBatch = marcon.slice(mi, mi + BATCH_SIZE);
+        
+        for (let ai = 0; ai < alfa.length; ai += BATCH_SIZE) {
+          const alfaBatch = alfa.slice(ai, ai + BATCH_SIZE);
+          
+          currentBatch++;
+          setCompareProgress((currentBatch / totalBatches) * (hasItalo ? 80 : 100));
+          
+          const { data, error } = await supabase.functions.invoke("compare-products-gtin", { 
+            body: { 
+              italoProducts: mi === 0 && ai === 0 ? italo : [], // Italo apenas no primeiro lote
+              marconProducts: marconBatch, 
+              alfaProducts: alfaBatch,
+              useSemanticAI: useSemanticAI && mi === 0 && ai === 0 // Semântico apenas no primeiro
+            } 
+          });
+          
+          if (error) throw error;
+          
+          // Acumular resultados (evitar duplicatas por GTIN)
+          const existingGtins = new Set(allCompared.map(p => p.gtin));
+          for (const product of data.comparedProducts) {
+            if (!existingGtins.has(product.gtin)) {
+              allCompared.push(product);
+              existingGtins.add(product.gtin);
+            }
+          }
+          
+          // Acumular estatísticas do primeiro batch apenas (mais precisas)
+          if (mi === 0 && ai === 0) {
+            totalStats = data.stats;
+          }
+        }
+      }
+      
+      // Se não há Marcon nem Alfa, processar apenas com o que tiver
+      if (marcon.length === 0 && alfa.length === 0 && italo.length > 0) {
+        const { data, error } = await supabase.functions.invoke("compare-products-gtin", { 
+          body: { italoProducts: italo, marconProducts: [], alfaProducts: [], useSemanticAI } 
+        });
+        if (error) throw error;
+        allCompared.push(...data.comparedProducts);
+        totalStats = data.stats;
+      }
+      
+      // Atualizar estatísticas finais
+      totalStats.totalMatches = allCompared.length;
+      totalStats.gtinMatches = allCompared.filter(p => p.matchType === 'gtin').length;
+      totalStats.descriptionMatches = allCompared.filter(p => p.matchType === 'description').length;
+      totalStats.semanticMatches = allCompared.filter(p => p.matchType === 'semantic').length;
+      totalStats.italoBest = allCompared.filter(p => p.bestStore === 'italo').length;
+      totalStats.marconBest = allCompared.filter(p => p.bestStore === 'marcon').length;
+      totalStats.alfaBest = allCompared.filter(p => p.bestStore === 'alfa').length;
+      
+      setComparedProducts(allCompared);
+      setUnmatchedProducts(allUnmatched);
+      setStats(totalStats);
+      setCompareProgress(100);
+      toast.success(`${totalStats.totalMatches} produtos comparados!`);
+    } catch (e) { 
+      console.error(e); 
+      toast.error("Erro ao comparar - tente com menos lojas ou desative IA semântica"); 
+    } finally { 
+      setComparing(false); 
+    }
   };
 
   const handleExportExcel = () => {
@@ -165,7 +240,8 @@ export default function Compare() {
             Usar IA Semântica (Gemini) - comparação mais inteligente
           </Label>
         </div>
-        <Button onClick={handleCompare} disabled={isAnyLoading} size="lg" className="w-full bg-green-500 hover:bg-green-600 py-6">{comparing ? <><Loader2 className="h-5 w-5 animate-spin mr-2" />Comparando...</> : <><ArrowLeftRight className="h-5 w-5 mr-2" />Comparar (GTIN + Descrição{useSemanticAI ? " + IA" : ""})</>}</Button>
+        {comparing && <Progress value={compareProgress} className="h-2 mb-2" />}
+        <Button onClick={handleCompare} disabled={isAnyLoading} size="lg" className="w-full bg-green-500 hover:bg-green-600 py-6">{comparing ? <><Loader2 className="h-5 w-5 animate-spin mr-2" />Comparando... {compareProgress.toFixed(0)}%</> : <><ArrowLeftRight className="h-5 w-5 mr-2" />Comparar (GTIN + Descrição{useSemanticAI ? " + IA" : ""})</>}</Button>
       </Card>
 
       {stats.totalMatches === 0 && !comparing ? <Card className="p-12 border-2 border-dashed bg-green-50/30"><p className="text-center text-muted-foreground">Carregue produtos para comparar</p></Card> : <>
